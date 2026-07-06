@@ -10,6 +10,7 @@
 
     /* Bundler mode */
     "moduleResolution": "bundler",
+    "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
@@ -22,5 +23,6 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src", "tools"],
+  "exclude": ["src/**/__tests__/**"]
 }
