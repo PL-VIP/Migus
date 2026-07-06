@@ -16,6 +16,9 @@ dist-ssr
 public/mediapipe
 public/models
 
+# Cache crawlera i pobranych filmów (scripts/crawl-dictionary.mjs, extract-templates.mjs)
+.cache/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
