@@ -1,23 +1,19 @@
-import { useCallback, useState } from 'react'
-import { useHandRecognition } from './hooks/useHandRecognition'
-import { SUPPORTED_LETTERS } from './lib/pjmClassifier'
-import { LETTER_POSES } from './data/letterPoses'
-import { DICTIONARY_URL, WORD_CATEGORIES } from './data/pjmWords'
-import { HandDiagram } from './components/HandDiagram'
-import { WordVideoCard } from './components/WordVideoCard'
+import { useState } from 'react'
+import { LettersView } from './views/LettersView'
+import { LearnView } from './views/LearnView'
+import { DictionaryView } from './views/DictionaryView'
 import './App.css'
 
+type Tab = 'learn' | 'letters' | 'dictionary'
+
+const TABS: Array<{ id: Tab; label: string }> = [
+  { id: 'learn', label: 'Nauka słów' },
+  { id: 'letters', label: 'Alfabet palcowy' },
+  { id: 'dictionary', label: 'Słownik' },
+]
+
 function App() {
-  const [history, setHistory] = useState<string[]>([])
-
-  const handleStableLetter = useCallback((letter: string) => {
-    setHistory((prev) => [...prev, letter])
-  }, [])
-
-  const { videoRef, canvasRef, state, start, stop } = useHandRecognition(handleStableLetter)
-
-  const running = state.status === 'running'
-  const loading = state.status === 'loading'
+  const [tab, setTab] = useState<Tab>('learn')
 
   return (
     <div className="app">
@@ -26,168 +22,30 @@ function App() {
           Migus <span className="badge">PJM</span>
         </h1>
         <p className="subtitle">
-          Rozpoznawanie liter alfabetu palcowego polskiego języka migowego na żywo z kamery
+          Nauka polskiego języka migowego: lekcje słów z oceną wykonania, rozpoznawanie alfabetu
+          palcowego i słownik znaków - wszystko w przeglądarce
         </p>
+        <nav className="tabs" aria-label="Sekcje aplikacji">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={`tab ${tab === t.id ? 'active' : ''}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
       </header>
 
-      <main className="layout">
-        <section className="camera-panel">
-          <div className={`video-wrap ${running ? 'is-running' : ''}`}>
-            <video ref={videoRef} playsInline muted />
-            <canvas ref={canvasRef} />
-
-            {!running && !loading && (
-              <div className="video-placeholder">
-                <p>Kamera jest wyłączona</p>
-                <button type="button" className="primary" onClick={start}>
-                  Włącz kamerę
-                </button>
-              </div>
-            )}
-
-            {loading && (
-              <div className="video-placeholder">
-                <p>Ładowanie modelu i uruchamianie kamery…</p>
-              </div>
-            )}
-
-            {running && (
-              <div className="video-hud">
-                <span className={`hand-status ${state.handDetected ? 'ok' : ''}`}>
-                  {state.handDetected ? 'Dłoń wykryta' : 'Pokaż dłoń do kamery'}
-                </span>
-                <span className="fps">{state.fps} kl/s</span>
-              </div>
-            )}
-          </div>
-
-          {state.status === 'error' && <p className="error">{state.errorMessage}</p>}
-
-          <div className="controls">
-            {running ? (
-              <button type="button" onClick={stop}>
-                Zatrzymaj kamerę
-              </button>
-            ) : (
-              <button type="button" className="primary" onClick={start} disabled={loading}>
-                {loading ? 'Uruchamianie…' : 'Włącz kamerę'}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setHistory([])}
-              disabled={history.length === 0}
-            >
-              Wyczyść historię
-            </button>
-          </div>
-        </section>
-
-        <section className="result-panel">
-          <div className="current-letter">
-            <span className="label">Rozpoznana litera</span>
-            <span className={`letter ${state.stableLetter ? 'active' : ''}`}>
-              {state.stableLetter?.letter ?? '–'}
-            </span>
-            <div className="confidence">
-              <div
-                className="confidence-bar"
-                style={{ width: `${Math.round((state.stableLetter?.confidence ?? 0) * 100)}%` }}
-              />
-            </div>
-            <span className="confidence-value">
-              {state.stableLetter
-                ? `pewność ${Math.round(state.stableLetter.confidence * 100)}%`
-                : running
-                  ? 'czekam na stabilny układ dłoni…'
-                  : 'włącz kamerę, aby zacząć'}
-            </span>
-          </div>
-
-          {running && state.topCandidates.length > 0 && (
-            <div className="candidates">
-              <span className="label">Najbliższe dopasowania</span>
-              <ul>
-                {state.topCandidates.map((c) => (
-                  <li key={c.letter}>
-                    <span className="candidate-letter">{c.letter}</span>
-                    <div className="candidate-bar-track">
-                      <div
-                        className="candidate-bar"
-                        style={{ width: `${Math.round(c.confidence * 100)}%` }}
-                      />
-                    </div>
-                    <span className="candidate-value">{Math.round(c.confidence * 100)}%</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="history">
-            <span className="label">Przeliterowane</span>
-            <div className="history-letters">
-              {history.length > 0 ? history.join(' ') : <span className="muted">jeszcze nic…</span>}
-            </div>
-          </div>
-        </section>
-      </main>
-
-      <section className="letters-panel">
-        <h2>Obsługiwane litery ({SUPPORTED_LETTERS.length})</h2>
-        <p className="muted">
-          Wersja pierwsza rozpoznaje statyczne litery alfabetu palcowego PJM. Litery wymagające
-          ruchu dłoni (np. Ą, Ę, J, Ł) pojawią się w kolejnych wersjach.
-        </p>
-        <ul className="letters-grid">
-          {SUPPORTED_LETTERS.map((l) => (
-            <li key={l.letter}>
-              <HandDiagram
-                landmarks={LETTER_POSES[l.letter]}
-                size={92}
-                className="letters-grid-diagram"
-                title={`Układ dłoni dla litery ${l.letter}`}
-              />
-              <div>
-                <span className="letters-grid-letter">{l.letter}</span>
-                <span className="letters-grid-desc">{l.description}</span>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="words-panel">
-        <h2>Nauka wyrazów - znaki PJM z nagraniami</h2>
-        <p className="muted">
-          Całych wyrazów w PJM zwykle się nie literuje - mają one własne znaki ideograficzne
-          (alfabet palcowy służy głównie do literowania imion i nazw własnych). Poniżej nagrania
-          rodzimych znaków PJM, na których możesz uczyć się całych wyrazów.
-        </p>
-        {WORD_CATEGORIES.map((cat) => (
-          <div key={cat.category} className="word-category">
-            <h3>{cat.category}</h3>
-            <div className="words-grid">
-              {cat.words.map((w) => (
-                <WordVideoCard key={w.glossId} word={w} />
-              ))}
-            </div>
-          </div>
-        ))}
-        <p className="attribution">
-          Nagrania znaków pochodzą z{' '}
-          <a href={DICTIONARY_URL} target="_blank" rel="noreferrer">
-            Korpusowego Słownika Polskiego Języka Migowego
-          </a>{' '}
-          (J. Łacheta, M. Czajkowska-Kisil, J. Linde-Usiekniewicz, P. Rutkowski, red., 2016,
-          Warszawa: Wydział Polonistyki UW, ISBN 978-83-64111-49-5) i są odtwarzane bezpośrednio ze
-          strony słownika. Filmy wczytują się dopiero po kliknięciu „Pokaż znak”.
-        </p>
-      </section>
+      {tab === 'learn' && <LearnView />}
+      {tab === 'letters' && <LettersView />}
+      {tab === 'dictionary' && <DictionaryView />}
 
       <footer className="app-footer">
         Obraz z kamery jest przetwarzany wyłącznie lokalnie w Twojej przeglądarce - nic nie jest
-        wysyłane na serwer.
+        wysyłane na serwer. Nagrania znaków: Korpusowy Słownik PJM (UW).
       </footer>
     </div>
   )

@@ -20,6 +20,34 @@
   margin: 6px 0 0;
 }
 
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+
+.tab {
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  padding: 10px 16px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.tab:hover:not(:disabled) {
+  color: var(--text);
+  border-color: transparent;
+}
+
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
@@ -294,37 +322,7 @@
   color: var(--text-muted);
 }
 
-/* ---- nauka wyrazów (filmy znaków PJM) ---- */
-
-.words-panel {
-  margin-top: 36px;
-}
-
-.words-panel h2 {
-  font-size: 1.25rem;
-  margin-bottom: 6px;
-}
-
-.word-category h3 {
-  margin: 22px 0 12px;
-  font-size: 1.05rem;
-  color: var(--accent);
-}
-
-.words-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 14px;
-}
-
-.word-card {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
+/* ---- karty z filmami znaków ---- */
 
 .word-video {
   aspect-ratio: 4 / 3;
@@ -373,36 +371,9 @@
   border-color: var(--accent);
 }
 
-.word-video-fallback {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-
-.word-video-fallback a {
-  color: var(--accent);
-}
-
-.word-meta {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 10px 14px;
-}
-
 .word-title {
   font-weight: 700;
   font-size: 1.05rem;
-}
-
-.word-note {
-  color: var(--text-muted);
-  font-size: 0.8rem;
 }
 
 .word-source {
@@ -427,6 +398,381 @@
 
 .attribution a {
   color: var(--accent);
+}
+
+.small {
+  font-size: 0.82rem;
+}
+
+/* ---- nauka słów (lekcje) ---- */
+
+.learn {
+  margin-top: 24px;
+}
+
+.learn-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.learn-header h2 {
+  font-size: 1.4rem;
+}
+
+.learn-stats {
+  display: flex;
+  gap: 12px;
+}
+
+.stat {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 18px;
+  text-align: center;
+  min-width: 86px;
+}
+
+.stat-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.lesson {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 20px;
+  margin-top: 16px;
+}
+
+.lesson-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lesson-head h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.lesson-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 1.2rem;
+}
+
+.lesson-progress {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 160px;
+}
+
+.lesson-progress-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-panel-2);
+  overflow: hidden;
+}
+
+.lesson-progress-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.3s;
+}
+
+.lesson-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.word-chip {
+  border-radius: 999px;
+  padding: 9px 18px;
+  font-weight: 600;
+}
+
+.word-chip.tried {
+  border-color: #c9a227;
+}
+
+.word-chip.done {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---- ćwiczenie słowa ---- */
+
+.practice {
+  margin-top: 24px;
+}
+
+.practice-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.practice-head .back {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 4px 0;
+}
+
+.practice-head .back:hover {
+  color: var(--accent);
+}
+
+.practice-word {
+  font-size: 1.6rem;
+  margin: 0;
+}
+
+.practice-steps {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.step-tab {
+  border-radius: 999px;
+  padding: 8px 18px;
+}
+
+.step-tab.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.practice-watch {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 860px) {
+  .practice-watch {
+    grid-template-columns: 1fr;
+  }
+}
+
+.watch-video {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+}
+
+.watch-video video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.watch-instructions {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 22px;
+}
+
+.watch-instructions h3 {
+  margin: 0 0 10px;
+}
+
+.watch-instructions ol {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+button.big {
+  padding: 12px 22px;
+  font-size: 1rem;
+}
+
+.practice-camera .video-wrap {
+  max-width: 760px;
+}
+
+.overlay-big {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 7rem;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(13, 17, 23, 0.45);
+  pointer-events: none;
+}
+
+.overlay-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(13, 17, 23, 0.75);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-weight: 700;
+}
+
+.overlay-badge.rec {
+  color: var(--danger);
+}
+
+.record-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 8px;
+  background: rgba(13, 17, 23, 0.6);
+}
+
+.record-progress > div {
+  height: 100%;
+  background: var(--danger);
+}
+
+.overlay-result {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  background: rgba(13, 17, 23, 0.82);
+  padding: 20px;
+}
+
+.overlay-result.ok .overlay-stars {
+  color: var(--accent);
+}
+
+.overlay-result.nope .overlay-stars {
+  color: #c9a227;
+}
+
+.overlay-stars {
+  font-size: 2.4rem;
+  letter-spacing: 0.15em;
+}
+
+.overlay-score {
+  font-size: 3rem;
+  font-weight: 800;
+}
+
+.overlay-result.ok .overlay-score {
+  color: var(--accent);
+}
+
+.overlay-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+/* ---- słownik ---- */
+
+.dictionary {
+  margin-top: 24px;
+}
+
+.dictionary h2 {
+  font-size: 1.4rem;
+}
+
+.dict-search {
+  width: 100%;
+  max-width: 460px;
+  margin-top: 14px;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.dict-search:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.dict-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.dict-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.dict-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+}
+
+.dict-meta .word-source {
+  margin-left: 0;
+}
+
+.dict-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+button.slim {
+  padding: 6px 12px;
+  font-size: 0.85rem;
 }
 
 .app-footer {
