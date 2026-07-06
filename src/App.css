@@ -268,23 +268,165 @@
 .letters-grid li {
   display: flex;
   gap: 14px;
-  align-items: flex-start;
+  align-items: center;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 12px 16px;
 }
 
+.letters-grid-diagram {
+  flex-shrink: 0;
+  background: #101624;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
 .letters-grid-letter {
+  display: block;
   font-size: 1.6rem;
   font-weight: 800;
   color: var(--accent);
-  min-width: 28px;
 }
 
 .letters-grid-desc {
   font-size: 0.88rem;
   color: var(--text-muted);
+}
+
+/* ---- nauka wyrazów (filmy znaków PJM) ---- */
+
+.words-panel {
+  margin-top: 36px;
+}
+
+.words-panel h2 {
+  font-size: 1.25rem;
+  margin-bottom: 6px;
+}
+
+.word-category h3 {
+  margin: 22px 0 12px;
+  font-size: 1.05rem;
+  color: var(--accent);
+}
+
+.words-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.word-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.word-video {
+  aspect-ratio: 4 / 3;
+  background: #101624;
+}
+
+.word-video video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.word-video-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--text-muted);
+}
+
+.word-video-placeholder:hover {
+  color: var(--accent);
+}
+
+.play-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  font-size: 1rem;
+  padding-left: 4px;
+}
+
+.word-video-placeholder:hover .play-icon {
+  border-color: var(--accent);
+}
+
+.word-video-fallback {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.word-video-fallback a {
+  color: var(--accent);
+}
+
+.word-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 14px;
+}
+
+.word-title {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.word-note {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.word-source {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.word-source:hover {
+  color: var(--accent);
+}
+
+.attribution {
+  margin-top: 24px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.attribution a {
+  color: var(--accent);
 }
 
 .app-footer {

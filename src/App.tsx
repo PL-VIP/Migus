@@ -1,6 +1,10 @@
 import { useCallback, useState } from 'react'
 import { useHandRecognition } from './hooks/useHandRecognition'
 import { SUPPORTED_LETTERS } from './lib/pjmClassifier'
+import { LETTER_POSES } from './data/letterPoses'
+import { DICTIONARY_URL, WORD_CATEGORIES } from './data/pjmWords'
+import { HandDiagram } from './components/HandDiagram'
+import { WordVideoCard } from './components/WordVideoCard'
 import './App.css'
 
 function App() {
@@ -138,11 +142,47 @@ function App() {
         <ul className="letters-grid">
           {SUPPORTED_LETTERS.map((l) => (
             <li key={l.letter}>
-              <span className="letters-grid-letter">{l.letter}</span>
-              <span className="letters-grid-desc">{l.description}</span>
+              <HandDiagram
+                landmarks={LETTER_POSES[l.letter]}
+                size={92}
+                className="letters-grid-diagram"
+                title={`Układ dłoni dla litery ${l.letter}`}
+              />
+              <div>
+                <span className="letters-grid-letter">{l.letter}</span>
+                <span className="letters-grid-desc">{l.description}</span>
+              </div>
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="words-panel">
+        <h2>Nauka wyrazów - znaki PJM z nagraniami</h2>
+        <p className="muted">
+          Całych wyrazów w PJM zwykle się nie literuje - mają one własne znaki ideograficzne
+          (alfabet palcowy służy głównie do literowania imion i nazw własnych). Poniżej nagrania
+          rodzimych znaków PJM, na których możesz uczyć się całych wyrazów.
+        </p>
+        {WORD_CATEGORIES.map((cat) => (
+          <div key={cat.category} className="word-category">
+            <h3>{cat.category}</h3>
+            <div className="words-grid">
+              {cat.words.map((w) => (
+                <WordVideoCard key={w.glossId} word={w} />
+              ))}
+            </div>
+          </div>
+        ))}
+        <p className="attribution">
+          Nagrania znaków pochodzą z{' '}
+          <a href={DICTIONARY_URL} target="_blank" rel="noreferrer">
+            Korpusowego Słownika Polskiego Języka Migowego
+          </a>{' '}
+          (J. Łacheta, M. Czajkowska-Kisil, J. Linde-Usiekniewicz, P. Rutkowski, red., 2016,
+          Warszawa: Wydział Polonistyki UW, ISBN 978-83-64111-49-5) i są odtwarzane bezpośrednio ze
+          strony słownika. Filmy wczytują się dopiero po kliknięciu „Pokaż znak”.
+        </p>
       </section>
 
       <footer className="app-footer">

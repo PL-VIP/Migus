@@ -165,24 +165,30 @@ export const LETTER_RULES: LetterRule[] = [
       },
       { name: 'wskazujący zaokrąglony', weight: 1, score: (f) => trapezoid(f.fingers.index.curlDeg, 40, 160, 35) },
       {
-        name: 'środkowy niezgięty w pięść',
+        name: 'środkowy prosty lub lekko zgięty',
         weight: 1,
-        score: (f) => trapezoid(f.fingers.middle.curlDeg, 0, 110, 45),
+        score: (f) => trapezoid(f.fingers.middle.curlDeg, 0, 70, 45),
       },
       {
-        name: 'serdeczny niezgięty w pięść',
+        name: 'serdeczny prosty lub lekko zgięty',
         weight: 1,
-        score: (f) => trapezoid(f.fingers.ring.curlDeg, 0, 110, 45),
+        score: (f) => trapezoid(f.fingers.ring.curlDeg, 0, 70, 45),
       },
       {
-        name: 'mały niezgięty w pięść',
+        name: 'mały prosty lub lekko zgięty',
         weight: 1,
-        score: (f) => trapezoid(f.fingers.pinky.curlDeg, 0, 110, 45),
+        score: (f) => trapezoid(f.fingers.pinky.curlDeg, 0, 70, 45),
       },
       {
         name: 'środkowy nie skleja się z okręgiem',
         weight: 0.7,
         score: (f) => trapezoid(f.fingers.middle.tipDist, 1.05, 3, 0.3),
+      },
+      {
+        name: 'palce złączone (odróżnia od W)',
+        weight: 0.8,
+        score: (f) =>
+          (trapezoid(f.middleRingSpreadDeg, 0, 8, 6) + trapezoid(f.ringPinkySpreadDeg, 0, 10, 8)) / 2,
       },
     ],
   },
