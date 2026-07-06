@@ -15,7 +15,13 @@ Ta wersja zawiera **rozpoznawanie na żywo statycznych liter alfabetu palcowego 
 
 Wersja pierwsza rozpoznaje statyczne litery: **A, B, C, E, I, L, O, R, W, Y**.
 
+Każda litera ma w aplikacji **grafikę układu dłoni** rysowaną z tych samych 21 punktów, które rozpoznaje klasyfikator (`src/data/letterPoses.ts` + `src/components/HandDiagram.tsx`) - testy gwarantują, że pokazywany układ jest rozpoznawany jako właściwa litera.
+
 Litery wymagające ruchu dłoni (np. Ą, Ę, J, Ł, RZ, SZ) oraz pozostałe litery statyczne będą dodawane w kolejnych wersjach. Planowany jest także tryb nauki: aplikacja pokaże literę, a użytkownik będzie musiał zamigać ją poprawnie.
+
+## Nauka wyrazów - znaki PJM z nagraniami
+
+Całych wyrazów w PJM zwykle się nie literuje - mają one własne znaki ideograficzne. Sekcja „Nauka wyrazów” zawiera nagrania wideo rodzimych znaków PJM (m.in. *mama*, *dziękuję*, *jeść*, *dom*), pogrupowane tematycznie. Nagrania pochodzą z [Korpusowego Słownika Polskiego Języka Migowego](https://www.slownikpjm.uw.edu.pl/) (Łacheta, Czajkowska-Kisil, Linde-Usiekniewicz, Rutkowski, red., 2016, Wydział Polonistyki UW, ISBN 978-83-64111-49-5) i są odtwarzane bezpośrednio ze strony słownika - film wczytuje się dopiero po kliknięciu „Pokaż znak”, a każda karta linkuje do pełnego hasła w słowniku.
 
 ## Uruchomienie
 
@@ -48,7 +54,14 @@ src/
     handFeatures.ts    # ekstrakcja cech z 21 punktów dłoni MediaPipe
     pjmClassifier.ts   # reguły liter PJM + klasyfikacja z pewnością
     stabilizer.ts      # wygładzanie rozpoznań w czasie
+    handPose.ts        # proceduralny model pozy dłoni (grafiki liter)
     __tests__/         # testy jednostkowe + syntetyczne układy dłoni
+  data/
+    letterPoses.ts     # pozy dłoni liter PJM (grafiki zgodne z klasyfikatorem)
+    pjmWords.ts        # wyrazy do nauki + nagrania znaków z KSPJM
+  components/
+    HandDiagram.tsx    # grafika SVG dłoni z 21 punktów
+    WordVideoCard.tsx  # karta wyrazu z nagraniem znaku PJM
   hooks/
     useHandRecognition.ts  # kamera + MediaPipe + pętla rozpoznawania
   App.tsx              # interfejs użytkownika (po polsku)
