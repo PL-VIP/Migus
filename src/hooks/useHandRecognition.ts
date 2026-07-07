@@ -1,21 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision'
-import { extractHandFeatures } from '../lib/handFeatures'
+import { extractHandFeatures, LM } from '../lib/handFeatures'
 import {
   type ClassificationResult,
   classifyHand,
+  rankAllShapes,
   rankLetters,
 } from '../lib/pjmClassifier'
 import { LetterStabilizer } from '../lib/stabilizer'
+import {
+  DYNAMIC_REPLACES_STATIC,
+  DynamicLetterDetector,
+} from '../lib/dynamicLetters'
 
 export type RecognitionStatus = 'idle' | 'loading' | 'running' | 'error'
+
+/** Zdarzenie literowe: litera + ewentualna korekta poprzedniej (A → Ą). */
+export interface LetterEvent {
+  letter: string
+  /** Jeśli ostatnia litera historii jest równa tej wartości, zastąp ją. */
+  replacePrev?: string
+}
 
 export interface RecognitionState {
   status: RecognitionStatus
   errorMessage: string | null
   handDetected: boolean
+  /** Dłoń się porusza (litery statyczne są wtedy wstrzymane). */
+  handMoving: boolean
   /** Ustabilizowana litera (wygładzona w czasie) lub null. */
   stableLetter: ClassificationResult | null
+  /** Ostatnio wykryta litera ruchoma (znika po chwili). */
+  dynamicLetter: string | null
   /** Trzy najlepsze dopasowania z bieżącej klatki. */
   topCandidates: ClassificationResult[]
   fps: number
@@ -25,7 +41,9 @@ const INITIAL_STATE: RecognitionState = {
   status: 'idle',
   errorMessage: null,
   handDetected: false,
+  handMoving: false,
   stableLetter: null,
+  dynamicLetter: null,
   topCandidates: [],
   fps: 0,
 }
@@ -40,14 +58,17 @@ const HAND_CONNECTIONS: Array<[number, number]> = [
   [0, 17],
 ]
 
+const DYNAMIC_FLASH_MS = 1600
+
 function drawHand(
   ctx: CanvasRenderingContext2D,
   landmarks: Array<{ x: number; y: number }>,
   width: number,
   height: number,
+  moving: boolean,
 ): void {
   ctx.lineWidth = 3
-  ctx.strokeStyle = 'rgba(56, 217, 169, 0.9)'
+  ctx.strokeStyle = moving ? 'rgba(255, 196, 87, 0.95)' : 'rgba(56, 217, 169, 0.9)'
   for (const [a, b] of HAND_CONNECTIONS) {
     ctx.beginPath()
     ctx.moveTo(landmarks[a].x * width, landmarks[a].y * height)
@@ -63,12 +84,13 @@ function drawHand(
 }
 
 /**
- * Obsługa kamery + MediaPipe Hand Landmarker + klasyfikacja liter PJM.
+ * Obsługa kamery + MediaPipe Hand Landmarker + rozpoznawanie liter PJM:
+ * statycznych (klasyfikator + stabilizator) i ruchomych (detektor gestów).
  *
- * `onStableLetter` jest wywoływane, gdy ustabilizowana litera zmienia się
- * na nową wartość (używane do budowania historii przeliterowanych liter).
+ * `onLetter` dostaje każdą rozpoznaną literę; dla liter ruchomych
+ * z `replacePrev` (np. Ą zastępuje świeżo dopisane A).
  */
-export function useHandRecognition(onStableLetter?: (letter: string) => void) {
+export function useHandRecognition(onLetter?: (event: LetterEvent) => void) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
@@ -76,11 +98,13 @@ export function useHandRecognition(onStableLetter?: (letter: string) => void) {
   const streamRef = useRef<MediaStream | null>(null)
   const rafRef = useRef<number>(0)
   const stabilizerRef = useRef(new LetterStabilizer())
+  const detectorRef = useRef(new DynamicLetterDetector())
   const lastStableRef = useRef<string | null>(null)
+  const dynamicFlashRef = useRef<{ letter: string; at: number } | null>(null)
   const lastUiUpdateRef = useRef(0)
   const frameTimesRef = useRef<number[]>([])
-  const onStableLetterRef = useRef(onStableLetter)
-  onStableLetterRef.current = onStableLetter
+  const onLetterRef = useRef(onLetter)
+  onLetterRef.current = onLetter
 
   const [state, setState] = useState<RecognitionState>(INITIAL_STATE)
 
@@ -91,7 +115,9 @@ export function useHandRecognition(onStableLetter?: (letter: string) => void) {
     landmarkerRef.current?.close()
     landmarkerRef.current = null
     stabilizerRef.current.reset()
+    detectorRef.current.reset()
     lastStableRef.current = null
+    dynamicFlashRef.current = null
     if (videoRef.current) videoRef.current.srcObject = null
     setState(INITIAL_STATE)
   }, [])
@@ -122,20 +148,50 @@ export function useHandRecognition(onStableLetter?: (letter: string) => void) {
     const landmarks = result.landmarks[0]
     let frameResult: ClassificationResult | null = null
     let topCandidates: ClassificationResult[] = []
+    const detector = detectorRef.current
 
     if (landmarks) {
-      drawHand(ctx, landmarks, canvas.width, canvas.height)
       const features = extractHandFeatures(landmarks)
       frameResult = classifyHand(features)
       topCandidates = rankLetters(features).slice(0, 3)
+
+      const dynamicEvent = detector.push({
+        t: now,
+        topShape: rankAllShapes(features)[0] ?? null,
+        wrist: { x: landmarks[LM.WRIST].x, y: landmarks[LM.WRIST].y },
+        indexTip: { x: landmarks[LM.INDEX_TIP].x, y: landmarks[LM.INDEX_TIP].y },
+        pinkyTip: { x: landmarks[LM.PINKY_TIP].x, y: landmarks[LM.PINKY_TIP].y },
+        palmSize: features.palmSize,
+      })
+
+      if (dynamicEvent) {
+        dynamicFlashRef.current = { letter: dynamicEvent.letter, at: now }
+        const replacePrev = DYNAMIC_REPLACES_STATIC[dynamicEvent.letter]
+        onLetterRef.current?.({ letter: dynamicEvent.letter, replacePrev })
+        stabilizerRef.current.reset()
+        lastStableRef.current = null
+      }
+
+      drawHand(ctx, landmarks, canvas.width, canvas.height, detector.isMoving)
+    } else {
+      detector.reset()
     }
 
-    const stable = stabilizerRef.current.push(frameResult)
+    // Podczas ruchu dłoni nie zgłaszamy liter statycznych - układ przejściowy
+    // między literami nie powinien trafiać do historii.
+    const stable = detector.isMoving
+      ? null
+      : stabilizerRef.current.push(frameResult)
 
     if (stable && stable.letter !== lastStableRef.current) {
-      onStableLetterRef.current?.(stable.letter)
+      onLetterRef.current?.({ letter: stable.letter })
     }
-    lastStableRef.current = stable?.letter ?? null
+    if (!detector.isMoving) {
+      lastStableRef.current = stable?.letter ?? null
+    }
+
+    const flash = dynamicFlashRef.current
+    const dynamicLetter = flash && now - flash.at < DYNAMIC_FLASH_MS ? flash.letter : null
 
     // Aktualizacja stanu Reacta co ~100 ms (rysowanie działa co klatkę).
     if (now - lastUiUpdateRef.current > 100) {
@@ -144,7 +200,9 @@ export function useHandRecognition(onStableLetter?: (letter: string) => void) {
         ...prev,
         status: 'running',
         handDetected: Boolean(landmarks),
+        handMoving: detector.isMoving,
         stableLetter: stable,
+        dynamicLetter,
         topCandidates,
         fps: times.length,
       }))

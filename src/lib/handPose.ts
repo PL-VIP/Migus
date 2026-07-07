@@ -25,6 +25,8 @@ export interface HandPoseSpec {
   pinky: FingerPose
   /** Punkty kciuka [MCP, IP, TIP] podawane wprost (CMC jest stały). */
   thumb: [Point3, Point3, Point3]
+  /** Obrót całej dłoni wokół nadgarstka w płaszczyźnie obrazu (stopnie, + zgodnie z zegarem). */
+  rotateDeg?: number
 }
 
 export const WRIST: Point3 = { x: 0.5, y: 0.84, z: 0 }
@@ -76,7 +78,7 @@ export function fingerJoints(
 
 /** Buduje pełną listę 21 punktów dłoni z opisu pozy. */
 export function buildHandPose(spec: HandPoseSpec): Point3[] {
-  return [
+  const points = [
     WRIST,
     THUMB_CMC,
     ...spec.thumb,
@@ -89,5 +91,18 @@ export function buildHandPose(spec: HandPoseSpec): Point3[] {
     MCP.pinky,
     ...fingerJoints(MCP.pinky, LENGTHS.pinky, spec.pinky),
   ]
+  if (!spec.rotateDeg) return points
+  const a = spec.rotateDeg * DEG
+  const cos = Math.cos(a)
+  const sin = Math.sin(a)
+  return points.map((p) => {
+    const dx = p.x - WRIST.x
+    const dy = p.y - WRIST.y
+    return {
+      x: WRIST.x + dx * cos - dy * sin,
+      y: WRIST.y + dx * sin + dy * cos,
+      z: p.z,
+    }
+  })
 }
 

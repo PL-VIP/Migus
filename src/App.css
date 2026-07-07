@@ -317,6 +317,27 @@
   color: var(--accent);
 }
 
+.letter-kind {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.45rem;
+  font-size: 0.62rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  color: #ffc457;
+  background: rgba(255, 196, 87, 0.12);
+  border: 1px solid rgba(255, 196, 87, 0.4);
+  border-radius: 999px;
+}
+
+.current-letter .letter.dynamic {
+  color: #ffc457;
+  text-shadow: 0 0 26px rgba(255, 196, 87, 0.45);
+}
+
 .letters-grid-desc {
   font-size: 0.88rem;
   color: var(--text-muted);
@@ -653,6 +674,17 @@ button.big {
 
 .overlay-badge.rec {
   color: var(--danger);
+}
+
+.overlay-badge.warn {
+  color: #ffc457;
+  border: 1px solid rgba(255, 196, 87, 0.5);
+  animation: pulse-warn 1.1s ease-in-out infinite;
+}
+
+@keyframes pulse-warn {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 
 .record-progress {

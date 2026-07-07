@@ -1,21 +1,47 @@
 import { useCallback, useState } from 'react'
-import { useHandRecognition } from '../hooks/useHandRecognition'
-import { SUPPORTED_LETTERS } from '../lib/pjmClassifier'
+import { useHandRecognition, type LetterEvent } from '../hooks/useHandRecognition'
+import { ALPHABET } from '../data/alphabet'
 import { LETTER_POSES } from '../data/letterPoses'
 import { HandDiagram } from '../components/HandDiagram'
+
+const KIND_LABEL = {
+  static: null,
+  dynamic: 'ruch',
+  transition: 'ruch',
+} as const
 
 /** Widok rozpoznawania liter alfabetu palcowego (daktylografia). */
 export function LettersView() {
   const [history, setHistory] = useState<string[]>([])
 
-  const handleStableLetter = useCallback((letter: string) => {
-    setHistory((prev) => [...prev, letter])
+  const handleLetter = useCallback((event: LetterEvent) => {
+    setHistory((prev) => {
+      // Litera ruchoma zastępuje swoją bazę, np. A → Ą, gdy ogonek
+      // został dorysowany chwilę po rozpoznaniu A.
+      if (event.replacePrev && prev.length > 0 && prev[prev.length - 1] === event.replacePrev) {
+        return [...prev.slice(0, -1), event.letter]
+      }
+      return [...prev, event.letter]
+    })
   }, [])
 
-  const { videoRef, canvasRef, state, start, stop } = useHandRecognition(handleStableLetter)
+  const { videoRef, canvasRef, state, start, stop } = useHandRecognition(handleLetter)
 
   const running = state.status === 'running'
   const loading = state.status === 'loading'
+
+  const displayLetter = state.dynamicLetter ?? state.stableLetter?.letter ?? null
+  const displayConfidence = state.dynamicLetter ? 0.9 : state.stableLetter?.confidence ?? 0
+
+  const liveHint = !state.handDetected
+    ? 'Pokaż dłoń do kamery'
+    : state.handMoving
+      ? 'Widzę ruch – dokończ gest…'
+      : state.stableLetter
+        ? 'Dłoń wykryta'
+        : state.topCandidates[0]
+          ? `Prawie ${state.topCandidates[0].letter} – doprecyzuj układ palców`
+          : 'Dłoń wykryta – ułóż literę'
 
   return (
     <>
@@ -42,9 +68,7 @@ export function LettersView() {
 
             {running && (
               <div className="video-hud">
-                <span className={`hand-status ${state.handDetected ? 'ok' : ''}`}>
-                  {state.handDetected ? 'Dłoń wykryta' : 'Pokaż dłoń do kamery'}
-                </span>
+                <span className={`hand-status ${state.handDetected ? 'ok' : ''}`}>{liveHint}</span>
                 <span className="fps">{state.fps} kl/s</span>
               </div>
             )}
@@ -71,18 +95,20 @@ export function LettersView() {
         <section className="result-panel">
           <div className="current-letter">
             <span className="label">Rozpoznana litera</span>
-            <span className={`letter ${state.stableLetter ? 'active' : ''}`}>
-              {state.stableLetter?.letter ?? '–'}
+            <span className={`letter ${displayLetter ? 'active' : ''} ${state.dynamicLetter ? 'dynamic' : ''}`}>
+              {displayLetter ?? '–'}
             </span>
             <div className="confidence">
               <div
                 className="confidence-bar"
-                style={{ width: `${Math.round((state.stableLetter?.confidence ?? 0) * 100)}%` }}
+                style={{ width: `${Math.round((displayLetter ? displayConfidence : 0) * 100)}%` }}
               />
             </div>
             <span className="confidence-value">
-              {state.stableLetter
-                ? `pewność ${Math.round(state.stableLetter.confidence * 100)}%`
+              {displayLetter
+                ? state.dynamicLetter
+                  ? 'litera ruchoma rozpoznana!'
+                  : `pewność ${Math.round(displayConfidence * 100)}%`
                 : running
                   ? 'czekam na stabilny układ dłoni…'
                   : 'włącz kamerę, aby zacząć'}
@@ -119,22 +145,28 @@ export function LettersView() {
       </main>
 
       <section className="letters-panel">
-        <h2>Obsługiwane litery ({SUPPORTED_LETTERS.length})</h2>
+        <h2>Alfabet palcowy PJM - wszystkie znaki ({ALPHABET.length})</h2>
         <p className="muted">
-          Wersja pierwsza rozpoznaje statyczne litery alfabetu palcowego PJM. Litery wymagające
-          ruchu dłoni (np. Ą, Ę, J, Ł) pojawią się w kolejnych wersjach.
+          Litery statyczne rozpoznawane są z układu dłoni, litery ruchome (oznaczone strzałką)
+          z układu bazowego i ruchu - np. Ą to A z dorysowanym ogonkiem, Ł to L przesunięte
+          w bok, a Ż to Z z kropką „postawioną” ruchem w przód. Trzymaj dłoń nieruchomo,
+          aż litera zostanie rozpoznana, a przy literach ruchomych wykonaj gest płynnie.
         </p>
         <ul className="letters-grid">
-          {SUPPORTED_LETTERS.map((l) => (
+          {ALPHABET.map((l) => (
             <li key={l.letter}>
               <HandDiagram
-                landmarks={LETTER_POSES[l.letter]}
+                landmarks={LETTER_POSES[l.baseShape]}
+                motion={l.kind === 'static' ? undefined : l.motion}
                 size={92}
                 className="letters-grid-diagram"
                 title={`Układ dłoni dla litery ${l.letter}`}
               />
               <div>
-                <span className="letters-grid-letter">{l.letter}</span>
+                <span className="letters-grid-letter">
+                  {l.letter}
+                  {KIND_LABEL[l.kind] && <em className="letter-kind">{KIND_LABEL[l.kind]}</em>}
+                </span>
                 <span className="letters-grid-desc">{l.description}</span>
               </div>
             </li>

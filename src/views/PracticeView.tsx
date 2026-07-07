@@ -157,11 +157,20 @@ export function PracticeView({ word, entry, onClose }: PracticeViewProps) {
               </div>
             )}
             {state.phase === 'countdown' && (
-              <div className="overlay-big countdown">{state.countdown}</div>
+              <>
+                <div className="overlay-big countdown">{state.countdown}</div>
+                {!state.handDetected && (
+                  <div className="overlay-badge warn">Nie widzę dłoni - ustaw się w kadrze</div>
+                )}
+              </>
             )}
             {state.phase === 'recording' && (
               <>
-                <div className="overlay-badge rec">● Migaj teraz!</div>
+                {state.handDetected ? (
+                  <div className="overlay-badge rec">● Migaj teraz!</div>
+                ) : (
+                  <div className="overlay-badge warn">Nie widzę dłoni - pokaż ręce w kadrze!</div>
+                )}
                 <div className="record-progress">
                   <div style={{ width: `${state.recordProgress * 100}%` }} />
                 </div>
