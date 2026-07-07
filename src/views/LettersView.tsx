@@ -33,14 +33,19 @@ export function LettersView() {
   const displayLetter = state.dynamicLetter ?? state.stableLetter?.letter ?? null
   const displayConfidence = state.dynamicLetter ? 0.9 : state.stableLetter?.confidence ?? 0
 
+  const nearCandidate =
+    !state.stableLetter && state.topCandidates[0] && state.topCandidates[0].confidence >= 0.45
+      ? state.topCandidates[0].letter
+      : null
+
   const liveHint = !state.handDetected
     ? 'Pokaż dłoń do kamery'
     : state.handMoving
       ? 'Widzę ruch – dokończ gest…'
       : state.stableLetter
         ? 'Dłoń wykryta'
-        : state.topCandidates[0]
-          ? `Prawie ${state.topCandidates[0].letter} – doprecyzuj układ palców`
+        : nearCandidate
+          ? `Prawie ${nearCandidate} – doprecyzuj układ palców`
           : 'Dłoń wykryta – ułóż literę'
 
   return (
