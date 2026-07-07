@@ -103,6 +103,12 @@ export interface DynamicLetterEvent {
   confidence: number
   /** Wzorzec ruchu / rodzaj przejścia. */
   via: MotionPattern | 'transition'
+  /**
+   * Układy, w których dłoń kończy gest - te litery statyczne należy
+   * wyciszyć, dopóki użytkownik nie zmieni układu (inaczej po Ą
+   * natychmiast dopisałoby się kolejne A).
+   */
+  endShapes: string[]
 }
 
 interface BufferedFrame extends DetectorFrame {
@@ -256,7 +262,7 @@ export class DynamicLetterDetector {
     for (const cand of candidates) {
       if (!cand.patterns.includes(info.pattern)) continue
       if (cand.extra && !cand.extra(info)) continue
-      return { letter: cand.letter, confidence: 0.9, via: info.pattern }
+      return { letter: cand.letter, confidence: 0.9, via: info.pattern, endShapes: [base] }
     }
     return null
   }
@@ -277,7 +283,7 @@ export class DynamicLetterDetector {
       const fromFrames = before.filter((s) => def.from.includes(s.shape))
       if (fromFrames.length >= 3) {
         this.shapeHistory = []
-        return { letter: def.letter, confidence: 0.85, via: 'transition' }
+        return { letter: def.letter, confidence: 0.85, via: 'transition', endShapes: def.to }
       }
     }
     return null

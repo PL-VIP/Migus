@@ -100,6 +100,8 @@ export function useHandRecognition(onLetter?: (event: LetterEvent) => void) {
   const stabilizerRef = useRef(new LetterStabilizer())
   const detectorRef = useRef(new DynamicLetterDetector())
   const lastStableRef = useRef<string | null>(null)
+  /** Litery wyciszone po literze ruchomej (baza gestu), do zmiany układu. */
+  const suppressedRef = useRef<Set<string> | null>(null)
   const dynamicFlashRef = useRef<{ letter: string; at: number } | null>(null)
   const lastUiUpdateRef = useRef(0)
   const frameTimesRef = useRef<number[]>([])
@@ -170,6 +172,10 @@ export function useHandRecognition(onLetter?: (event: LetterEvent) => void) {
         onLetterRef.current?.({ letter: dynamicEvent.letter, replacePrev })
         stabilizerRef.current.reset()
         lastStableRef.current = null
+        // Nie dopisuj od razu litery bazowej, w której gest się zakończył.
+        suppressedRef.current = new Set(
+          dynamicEvent.endShapes.concat(replacePrev ? [replacePrev] : []),
+        )
       }
 
       drawHand(ctx, landmarks, canvas.width, canvas.height, detector.isMoving)
@@ -179,9 +185,15 @@ export function useHandRecognition(onLetter?: (event: LetterEvent) => void) {
 
     // Podczas ruchu dłoni nie zgłaszamy liter statycznych - układ przejściowy
     // między literami nie powinien trafiać do historii.
-    const stable = detector.isMoving
-      ? null
-      : stabilizerRef.current.push(frameResult)
+    let stable = detector.isMoving ? null : stabilizerRef.current.push(frameResult)
+
+    if (stable && suppressedRef.current) {
+      if (suppressedRef.current.has(stable.letter)) {
+        stable = null
+      } else {
+        suppressedRef.current = null
+      }
+    }
 
     if (stable && stable.letter !== lastStableRef.current) {
       onLetterRef.current?.({ letter: stable.letter })

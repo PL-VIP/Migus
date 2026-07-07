@@ -5,7 +5,7 @@ Platforma do nauki PJM (polskiego języka migowego). Wszystko działa w przeglą
 Trzy moduły:
 
 1. **Nauka słów** (jak Duolingo): obejrzyj nagranie znaku PJM + automatyczną instrukcję → powtórz znak przed kamerą → aplikacja oceni wykonanie i przyzna XP.
-2. **Alfabet palcowy**: rozpoznawanie na żywo statycznych liter PJM z kamery.
+2. **Alfabet palcowy**: rozpoznawanie na żywo **wszystkich 38 znaków** polskiego alfabetu palcowego — liter statycznych i ruchomych (Ą, Ę, J, Ł, SZ, CZ, RZ…).
 3. **Słownik**: przeszukiwarka całego Korpusowego Słownika PJM (~2900 haseł zebranych automatycznie) z nagraniami znaków.
 
 ## Zautomatyzowany słownik (cały KSPJM)
@@ -30,17 +30,25 @@ npm run templates:all   # szablony dla całego katalogu (długo; pobiera wszystk
 ## Jak działa rozpoznawanie liter
 
 1. [MediaPipe Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker) wykrywa na obrazie z kamery 21 punktów charakterystycznych dłoni (WebAssembly, lokalnie w przeglądarce).
-2. Z punktów wyliczane są cechy geometryczne niezależne od odległości od kamery: kąty zgięcia palców, rozstaw palców, odległości opuszków, skrzyżowanie palców itd. (`src/lib/handFeatures.ts`).
-3. Klasyfikator regułowy porównuje cechy z opisami układów dłoni liter PJM i wyznacza pewność dopasowania każdej litery (`src/lib/pjmClassifier.ts`).
-4. Wynik jest wygładzany w czasie — litera jest zgłaszana dopiero, gdy dominuje w oknie ostatnich klatek (`src/lib/stabilizer.ts`). Rozpoznane litery trafiają do historii „przeliterowanych” znaków.
+2. **Kanonizacja dłoni** (`canonicalizeHand`): punkty są obracane tak, by oś dłoni była pionowa, a chiralność (lewa/prawa ręka) wykrywana geometrycznie i sprowadzana do wspólnego kanonu — rozpoznawanie działa dla obu rąk i przy pochylonej dłoni.
+3. Z punktów wyliczane są cechy geometryczne niezależne od odległości od kamery: kąty zgięcia palców, rozstaw palców, odległości opuszków, skrzyżowanie palców, kierunek kciuka itd. (`src/lib/handFeatures.ts`).
+4. Klasyfikator regułowy porównuje cechy z opisami układów dłoni liter PJM i wyznacza pewność dopasowania każdej litery (`src/lib/pjmClassifier.ts`). Litera jest akceptowana, gdy przekracza próg pewności i wyraźnie wygrywa z drugą kandydatką.
+5. Wynik jest wygładzany w czasie — litera statyczna jest zgłaszana dopiero, gdy dominuje w oknie ostatnich klatek (`src/lib/stabilizer.ts`). Rozpoznane litery trafiają do historii „przeliterowanych” znaków.
 
-## Obsługiwane litery
+## Litery ruchome (Ą, Ę, J, Ł, SZ, CZ, RZ…)
 
-Wersja pierwsza rozpoznaje statyczne litery: **A, B, C, E, I, L, O, R, W, Y**.
+Litery ruchome to **układ bazowy + ruch**. Silnik gestów (`src/lib/dynamicLetters.ts` + `src/lib/motion.ts`):
 
-Każda litera ma w aplikacji **grafikę układu dłoni** rysowaną z tych samych 21 punktów, które rozpoznaje klasyfikator (`src/data/letterPoses.ts` + `src/components/HandDiagram.tsx`) - testy gwarantują, że pokazywany układ jest rozpoznawany jako właściwa litera.
+1. Śledzi prędkość nadgarstka i czubków palców; wykrycie ruchu **wstrzymuje** zgłaszanie liter statycznych (układy przejściowe nie zaśmiecają historii).
+2. Po zatrzymaniu ruchu segment trajektorii jest klasyfikowany do wzorca: **ogonek/hak** (Ą, Ę, J), **zjazd w dół** (Ć, Ń, Ó, Ś, H, CH), **ruch w bok** (Ł, SZ), **zygzak** (Z, RZ), **kółko** (D), **ruch w przód** — wykrywany po wzroście rozmiaru dłoni w kadrze (K, CZ, Ż), **kreska** (Ź).
+3. Wzorzec jest łączony z układem bazowym trzymanym przed ruchem (np. L + bok = Ł, R + zygzak = RZ). Litery „przejścia” — **G** (pstryknięcie: dzióbek → wskazujący) i **U** (wiktoria → zgięte palce) — są wykrywane po zmianie układu bez ruchu całej ręki.
+4. Litera ruchoma **koryguje historię**: jeśli chwilę wcześniej dopisano jej bazę (np. A), zostaje ona zastąpiona (Ą).
 
-Litery wymagające ruchu dłoni (np. Ą, Ę, J, Ł, RZ, SZ) oraz pozostałe litery statyczne będą dodawane w kolejnych wersjach. Planowany jest także tryb nauki: aplikacja pokaże literę, a użytkownik będzie musiał zamigać ją poprawnie.
+## Obsługiwane znaki
+
+Wszystkie **38 znaków** polskiego alfabetu palcowego: 18 statycznych (A, B, C, E, F, I, L, M, N, O, P, R, S, T, V, W, X, Y) i 20 ruchomych (Ą, Ć, CH, CZ, D, Ę, G, H, J, K, Ł, Ń, Ó, RZ, Ś, SZ, U, Z, Ź, Ż).
+
+Każdy znak ma w aplikacji **grafikę układu dłoni** rysowaną z tych samych 21 punktów, które rozpoznaje klasyfikator (`src/data/letterPoses.ts` + `src/components/HandDiagram.tsx`), a litery ruchome dodatkowo strzałkę ruchu. Testy gwarantują, że pokazywany układ jest rozpoznawany jako właściwa litera, a syntetyczne trajektorie każdej litery ruchomej przechodzą przez silnik gestów.
 
 ## Źródło nagrań i atrybucja
 
@@ -74,8 +82,10 @@ npm run preview   # podgląd builda produkcyjnego
 src/
   lib/
     geometry.ts        # operacje na wektorach 3D, kąty
-    handFeatures.ts    # ekstrakcja cech z 21 punktów dłoni MediaPipe
-    pjmClassifier.ts   # reguły liter PJM + klasyfikacja z pewnością
+    handFeatures.ts    # kanonizacja dłoni + ekstrakcja cech z 21 punktów
+    pjmClassifier.ts   # reguły układów dłoni + klasyfikacja z pewnością
+    motion.ts          # analiza trajektorii: wzorce ruchu liter ruchomych
+    dynamicLetters.ts  # silnik liter ruchomych (segmentacja gestów, rejestr liter)
     stabilizer.ts      # wygładzanie rozpoznań liter w czasie
     handPose.ts        # proceduralny model pozy dłoni (grafiki liter)
     signTemplate.ts    # format szablonu znaku + cechy klatek + auto-instrukcje
@@ -84,7 +94,8 @@ src/
     progress.ts        # postęp nauki (XP, opanowane słowa) w localStorage
     __tests__/         # testy jednostkowe
   data/
-    letterPoses.ts     # pozy dłoni liter PJM (grafiki zgodne z klasyfikatorem)
+    alphabet.ts        # rejestr 38 znaków alfabetu (typ, baza, ruch, opis)
+    letterPoses.ts     # pozy dłoni układów PJM (grafiki zgodne z klasyfikatorem)
     lessons.ts         # lekcje nauki słów (odwołania do haseł KSPJM)
     generated/         # signIndex.json - indeks wygenerowanych szablonów
   components/
@@ -111,6 +122,7 @@ public/
 
 ## Wskazówki dotyczące rozpoznawania
 
-- Ustaw dłoń na wysokości klatki piersiowej, dobrze oświetloną, skierowaną wnętrzem do kamery.
+- Ustaw dłoń na wysokości klatki piersiowej, dobrze oświetloną, skierowaną wnętrzem do kamery. Możesz migać dowolną ręką.
 - Trzymaj układ dłoni nieruchomo przez chwilę — litera zostanie zgłoszona po ustabilizowaniu.
-- Panel „Najbliższe dopasowania” pokazuje na żywo trzy najlepiej pasujące litery, co pomaga skorygować układ dłoni.
+- Litery ruchome: najpierw przytrzymaj układ bazowy (np. A dla Ą), potem wykonaj gest płynnie i zatrzymaj dłoń. Szkielet dłoni zmienia kolor na pomarańczowy, gdy aplikacja śledzi ruch.
+- Panel „Najbliższe dopasowania” pokazuje na żywo trzy najlepiej pasujące litery, a pasek stanu podpowiada („Prawie L — doprecyzuj układ palców”), co pomaga skorygować dłoń.
