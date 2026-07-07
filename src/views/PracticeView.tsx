@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSignPractice } from '../hooks/useSignPractice'
+import { recordWindowMs, useSignPractice } from '../hooks/useSignPractice'
 import type { SignTemplate } from '../lib/signTemplate'
 import { kspjmGlossUrl, kspjmVideoUrl, kspjmPosterUrl, type CatalogEntry } from '../lib/catalog'
 import { saveAttempt, starsForScore } from '../lib/progress'
@@ -222,9 +222,11 @@ export function PracticeView({ word, entry, onClose }: PracticeViewProps) {
           </div>
 
           <p className="muted small">
-            Po odliczeniu 3-2-1 wykonaj znak w swoim tempie. Nagranie trwa{' '}
-            {template ? Math.max(2.5, template.durationSec * 1.6).toFixed(1) : '2,5'} s, a wykonanie
-            jest porównywane z nagraniem lektora (algorytm DTW, w pełni lokalnie).
+            Po odliczeniu 3-2-1 wykonaj znak w swoim tempie - nie musisz trafić idealnie w moment
+            startu. Nagranie trwa{' '}
+            {template ? (recordWindowMs(template.durationSec) / 1000).toFixed(1) : '3,5'} s, a
+            najlepszy fragment jest porównywany z nagraniem lektora (algorytm DTW, w pełni
+            lokalnie). Możesz migać lewą albo prawą ręką.
           </p>
         </div>
       )}

@@ -85,6 +85,39 @@ export function trimIdleFrames(frames: SignFrame[]): SignFrame[] {
   return frames.slice(first, last + 1)
 }
 
+function lerpHand(a: HandFrame, b: HandFrame, t: number): HandFrame {
+  return {
+    wrist: [a.wrist[0] + (b.wrist[0] - a.wrist[0]) * t, a.wrist[1] + (b.wrist[1] - a.wrist[1]) * t],
+    shape: a.shape.map((v, i) => v + (b.shape[i] - v) * t),
+  }
+}
+
+/**
+ * Wypełnia KRÓTKIE przerwy w detekcji dłoni interpolacją liniową.
+ * Chwilowe zniknięcie dłoni (rozmycie ruchu, zasłonięcie, słaby sprzęt)
+ * to zwykle błąd detektora, a nie schowanie ręki - bez uzupełnienia
+ * DTW niesłusznie karze nagranie kosztem brakującej dłoni.
+ * Dziury dłuższe niż `maxGap` klatek pozostają puste (ręka naprawdę znikła).
+ */
+export function densifyFrames(frames: SignFrame[], maxGap: number): SignFrame[] {
+  const out = frames.map((f) => ({ ...f }))
+  for (const side of ['left', 'right'] as const) {
+    let prev = -1
+    for (let i = 0; i < out.length; i++) {
+      if (!out[i][side]) continue
+      if (prev !== -1 && i - prev > 1 && i - prev <= maxGap + 1) {
+        const a = out[prev][side]!
+        const b = out[i][side]!
+        for (let j = prev + 1; j < i; j++) {
+          out[j][side] = lerpHand(a, b, (j - prev) / (i - prev))
+        }
+      }
+      prev = i
+    }
+  }
+  return out
+}
+
 // ---------- Automatyczne instrukcje po polsku ----------
 
 function netMovement(frames: SignFrame[], side: 'left' | 'right'): [number, number] | null {

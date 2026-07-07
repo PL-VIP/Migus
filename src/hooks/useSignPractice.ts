@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision'
-import { matchAgainstTemplate, type MatchResult } from '../lib/dtw'
+import { matchRecording, type MatchResult } from '../lib/dtw'
 import {
   handFrameFromLandmarks,
-  resampleFrames,
   trimIdleFrames,
   type SignFrame,
   type SignTemplate,
@@ -46,6 +45,15 @@ const INITIAL: PracticeState = {
 }
 
 const SAMPLE_FPS = 15
+
+/**
+ * Długość okna nagrywania próby. Dzięki dopasowaniu podsekwencyjnemu
+ * okno może być dłuższe niż sam znak - użytkownik nie musi trafić
+ * idealnie w moment startu.
+ */
+export function recordWindowMs(durationSec: number | undefined): number {
+  return Math.max(4500, (durationSec ?? 2) * 1800 + 2200)
+}
 const HAND_CONNECTIONS: Array<[number, number]> = [
   [0, 1], [1, 2], [2, 3], [3, 4],
   [0, 5], [5, 6], [6, 7], [7, 8],
@@ -143,7 +151,7 @@ export function useSignPractice(template: SignTemplate | null) {
       }
     } else if (phase === 'recording') {
       const tmpl = templateRef.current
-      const recordMs = Math.max(2500, (tmpl?.durationSec ?? 2) * 1600)
+      const recordMs = recordWindowMs(tmpl?.durationSec)
       if (now - lastSampleRef.current >= 1000 / SAMPLE_FPS) {
         lastSampleRef.current = now
         const frame: SignFrame = { left: null, right: null }
@@ -155,22 +163,43 @@ export function useSignPractice(template: SignTemplate | null) {
         })
         framesRef.current.push(frame)
       }
-      const progress = Math.min(1, elapsed / recordMs)
+
+      // Na wolnych urządzeniach pętla nie nadąża z 15 kl./s - wtedy
+      // wydłużamy nagrywanie, aż zbierzemy dość próbek (z twardym limitem).
+      const minFrames = Math.round((recordMs / 1000) * SAMPLE_FPS * 0.6)
+      const hardCapMs = recordMs * 3
+      const frameCount = framesRef.current.length
+      const progress = Math.min(
+        1,
+        Math.min(elapsed / recordMs, frameCount / Math.max(1, minFrames)),
+      )
       setState((prev) => ({ ...prev, recordProgress: progress, handDetected }))
-      if (elapsed >= recordMs) {
+
+      if (elapsed >= recordMs && (frameCount >= minFrames || elapsed >= hardCapMs)) {
         setPhase('scoring')
         const trimmed = trimIdleFrames(framesRef.current)
-        if (trimmed.length < 5 || !tmpl) {
+        if (!tmpl) {
           setPhase('result', {
             result: {
               distance: Infinity,
               score: 0,
               ok: false,
-              feedback: 'Nie wykryto dłoni podczas nagrania. Ustaw dłonie w kadrze i spróbuj ponownie.',
+              feedback: 'Brak szablonu znaku - wróć do lekcji i spróbuj ponownie.',
             },
           })
         } else {
-          const match = matchAgainstTemplate(resampleFrames(trimmed), tmpl)
+          // Rzeczywiste tempo próbkowania (nie nominalne) - istotne, gdy
+          // urządzenie nie nadąża; okna dopasowania muszą mu odpowiadać.
+          const effFps = Math.min(SAMPLE_FPS, (frameCount / Math.max(1, elapsed)) * 1000)
+          const match = matchRecording(trimmed, tmpl, Math.max(4, effFps))
+          // Telemetria do testów E2E (window.__practiceDebug).
+          ;(window as unknown as Record<string, unknown>).__practiceDebug = {
+            frames: frameCount,
+            withHands: trimmed.filter((f) => f.left || f.right).length,
+            elapsedMs: Math.round(elapsed),
+            effFps: Number(effFps.toFixed(1)),
+            distance: match.distance,
+          }
           setPhase('result', { result: match })
         }
       }
