@@ -102,6 +102,8 @@ export function useHandRecognition(onLetter?: (event: LetterEvent) => void) {
   const lastStableRef = useRef<string | null>(null)
   /** Litery wyciszone po literze ruchomej (baza gestu), do zmiany układu. */
   const suppressedRef = useRef<Set<string> | null>(null)
+  /** Klatki z rzędu bez dłoni - krótkie zaniki nie przerywają gestu. */
+  const missingFramesRef = useRef(0)
   const dynamicFlashRef = useRef<{ letter: string; at: number } | null>(null)
   const lastUiUpdateRef = useRef(0)
   const frameTimesRef = useRef<number[]>([])
@@ -179,8 +181,12 @@ export function useHandRecognition(onLetter?: (event: LetterEvent) => void) {
       }
 
       drawHand(ctx, landmarks, canvas.width, canvas.height, detector.isMoving)
+      missingFramesRef.current = 0
     } else {
-      detector.reset()
+      // Dopiero dłuższy zanik dłoni resetuje gest - pojedyncze zgubione
+      // klatki (szybki ruch potrafi rozmyć dłoń) nie przerywają litery.
+      missingFramesRef.current += 1
+      if (missingFramesRef.current > 10) detector.reset()
     }
 
     // Podczas ruchu dłoni nie zgłaszamy liter statycznych - układ przejściowy
@@ -227,6 +233,15 @@ export function useHandRecognition(onLetter?: (event: LetterEvent) => void) {
     setState({ ...INITIAL_STATE, status: 'loading' })
     try {
       const vision = await FilesetResolver.forVisionTasks('/mediapipe/wasm')
+      // Nieco niższe progi niż domyślne 0.5 - dłoń w ruchu lub częściowo
+      // przysłonięta nie znika z klatki na klatkę.
+      const common = {
+        runningMode: 'VIDEO' as const,
+        numHands: 1,
+        minHandDetectionConfidence: 0.4,
+        minHandPresenceConfidence: 0.4,
+        minTrackingConfidence: 0.4,
+      }
       let landmarker: HandLandmarker
       try {
         landmarker = await HandLandmarker.createFromOptions(vision, {
@@ -234,8 +249,7 @@ export function useHandRecognition(onLetter?: (event: LetterEvent) => void) {
             modelAssetPath: '/models/hand_landmarker.task',
             delegate: 'GPU',
           },
-          runningMode: 'VIDEO',
-          numHands: 1,
+          ...common,
         })
       } catch {
         // Brak WebGL/GPU - użyj CPU.
@@ -244,8 +258,7 @@ export function useHandRecognition(onLetter?: (event: LetterEvent) => void) {
             modelAssetPath: '/models/hand_landmarker.task',
             delegate: 'CPU',
           },
-          runningMode: 'VIDEO',
-          numHands: 1,
+          ...common,
         })
       }
       landmarkerRef.current = landmarker

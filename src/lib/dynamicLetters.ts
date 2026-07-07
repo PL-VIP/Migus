@@ -34,13 +34,18 @@ export interface TransitionLetterDef {
   maxMs: number
 }
 
+/** Kreska diakrytyczna nie może być poziomym machnięciem. */
+const diacriticStroke = (m: MotionInfoLike) => Math.abs(m.netY) >= 0.35 * Math.abs(m.netX)
+
+type MotionInfoLike = ReturnType<typeof summarizeMotion>
+
 export const DYNAMIC_LETTERS: DynamicLetterDef[] = [
-  { letter: 'Ą', baseShapes: ['A'], patterns: ['hook', 'down', 'stroke'] },
-  { letter: 'Ę', baseShapes: ['E'], patterns: ['hook', 'down', 'stroke'] },
-  { letter: 'Ć', baseShapes: ['C'], patterns: ['down', 'stroke'] },
-  { letter: 'Ń', baseShapes: ['N'], patterns: ['down', 'stroke'] },
-  { letter: 'Ó', baseShapes: ['O'], patterns: ['down', 'stroke'] },
-  { letter: 'Ś', baseShapes: ['S'], patterns: ['down', 'stroke'] },
+  { letter: 'Ą', baseShapes: ['A'], patterns: ['hook', 'down', 'stroke'], extra: diacriticStroke },
+  { letter: 'Ę', baseShapes: ['E'], patterns: ['hook', 'down', 'stroke'], extra: diacriticStroke },
+  { letter: 'Ć', baseShapes: ['C'], patterns: ['down', 'stroke'], extra: diacriticStroke },
+  { letter: 'Ń', baseShapes: ['N'], patterns: ['down', 'stroke'], extra: diacriticStroke },
+  { letter: 'Ó', baseShapes: ['O'], patterns: ['down', 'stroke'], extra: diacriticStroke },
+  { letter: 'Ś', baseShapes: ['S'], patterns: ['down', 'stroke'], extra: diacriticStroke },
   { letter: 'H', baseShapes: ['X'], patterns: ['down'] },
   { letter: 'CH', baseShapes: ['_SZPON'], patterns: ['down'] },
   { letter: 'CZ', baseShapes: ['_SZPON'], patterns: ['forward'] },

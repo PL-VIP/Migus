@@ -47,7 +47,9 @@ export function DictionaryView() {
       <h2>Słownik znaków PJM</h2>
       <p className="muted">
         Cały katalog Korpusowego Słownika PJM: {catalog ? catalog.length : '…'} haseł zebranych
-        automatycznie. Wpisz polskie słowo, aby zobaczyć nagranie znaku.
+        automatycznie. Wpisz polskie słowo, aby zobaczyć nagranie znaku. Dla {TEMPLATE_IDS.size}{' '}
+        znaków dostępne jest też ćwiczenie przed kamerą z oceną wykonania
+        (<code>npm run templates:all</code> generuje kolejne szablony).
       </p>
 
       <input
