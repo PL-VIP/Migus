@@ -1,6 +1,7 @@
 // Przygotowuje zasoby wymagane w runtime (katalog public/):
 //  1. kopiuje pliki WASM MediaPipe z node_modules do public/mediapipe/wasm,
-//  2. pobiera model hand_landmarker.task, jeśli nie jest jeszcze pobrany.
+//  2. pobiera model hand_landmarker.task, jeśli nie jest jeszcze pobrany,
+//  3. odświeża listę id szablonów (src/data/generated/templateIds.json).
 // Uruchamiany automatycznie przed `npm run dev` i `npm run build`.
 import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -42,3 +43,17 @@ if (existsSync(modelDst) && statSync(modelDst).size > 1_000_000) {
   writeFileSync(modelDst, buf)
   console.log(`Zapisano ${modelDst} (${(buf.length / 1024 / 1024).toFixed(1)} MB)`)
 }
+
+// 3. Lista id dostępnych szablonów - lekki plik trafiający do bundla
+// (pełne metadane siedzą w signIndex.json, którego aplikacja nie importuje).
+const signsDir = join(root, 'public', 'signs')
+const idsDst = join(root, 'src', 'data', 'generated', 'templateIds.json')
+mkdirSync(dirname(idsDst), { recursive: true })
+const ids = existsSync(signsDir)
+  ? readdirSync(signsDir)
+      .filter((f) => f.endsWith('.json'))
+      .map((f) => Number(f.replace('.json', '')))
+      .sort((a, b) => a - b)
+  : []
+writeFileSync(idsDst, JSON.stringify(ids))
+console.log(`Lista szablonów: ${ids.length} znaków (templateIds.json).`)

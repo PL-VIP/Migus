@@ -94,7 +94,8 @@ describe('jakość wykrycia znaków (symulacja nagrań na prawdziwych szablonach
   it('czułość: poprawne wykonanie przechodzi (różne tempa, szum, offset)', () => {
     const failures: string[] = []
     let total = 0
-    for (const t of templates.filter((_, i) => i % 4 === 0)) {
+    const stride = Math.max(4, Math.floor(templates.length / 60))
+    for (const t of templates.filter((_, i) => i % stride === 0)) {
       for (const speed of [0.8, 1, 1.3]) {
         total++
         const rec = simulateRecording(t, { speed, seed: 7 + total })
@@ -154,7 +155,8 @@ describe('jakość wykrycia znaków (symulacja nagrań na prawdziwych szablonach
     const fps = 3.1
     const failures: string[] = []
     let total = 0
-    for (const t of templates.filter((_, i) => i % 8 === 0)) {
+    const stride = Math.max(8, Math.floor(templates.length / 30))
+    for (const t of templates.filter((_, i) => i % stride === 0)) {
       total++
       const rnd = makeRng(900 + t.glossId)
       const rnd01 = () => (rnd() + 1) / 2
@@ -188,7 +190,8 @@ describe('jakość wykrycia znaków (symulacja nagrań na prawdziwych szablonach
   it('leworęczne (lustrzane) wykonanie właściwego znaku przechodzi', () => {
     const failures: string[] = []
     let total = 0
-    for (const t of templates.filter((_, i) => i % 8 === 0)) {
+    const stride = Math.max(8, Math.floor(templates.length / 30))
+    for (const t of templates.filter((_, i) => i % stride === 0)) {
       total++
       const rec = mirrorFrames(simulateRecording(t, { seed: 500 + t.glossId }))
       const result = matchRecording(rec, t, SAMPLE_FPS)

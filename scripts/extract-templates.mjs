@@ -11,6 +11,7 @@
 //   node scripts/extract-templates.mjs --lessons             # hasła z src/data/lessons.ts
 //   node scripts/extract-templates.mjs --all                 # cały katalog (długo!)
 //   node scripts/extract-templates.mjs --all --limit 100     # pierwsze 100 haseł katalogu
+//   node scripts/extract-templates.mjs --all --workers 4     # liczba równoległych kart
 //
 // Wymaga: zainstalowanego google-chrome i playwright (npm i -D playwright).
 import { createServer } from 'vite'
@@ -90,52 +91,91 @@ const browser = await chromium.launch({
   executablePath: process.env.CHROME_PATH ?? '/usr/local/bin/google-chrome',
   args: ['--no-sandbox'],
 })
-const page = await browser.newPage()
-page.on('pageerror', (e) => console.error('  [strona]', e.message))
-await page.goto('http://localhost:5199/tools/extract.html')
-await page.waitForFunction(() => window.harnessReady === true, undefined, { timeout: 60000 })
 
 const index = existsSync(indexFile) ? JSON.parse(readFileSync(indexFile, 'utf8')) : []
 const indexById = new Map(index.map((e) => [e.glossId, e]))
 
-let done = 0
+const queue = targets.filter((entry) => force || !existsSync(join(signsDir, `${entry.id}.json`)))
+const skipped = targets.length - queue.length
+console.log(`Istniejące szablony: ${skipped}, do ekstrakcji: ${queue.length}`)
+
+let done = skipped
 let failed = 0
-for (const entry of targets) {
-  const outFile = join(signsDir, `${entry.id}.json`)
-  if (!force && existsSync(outFile)) {
-    done++
-    continue
-  }
-  const word = entry.words[0]
-  try {
-    const videoFile = await downloadVideo(entry)
-    const template = await page.evaluate(
-      ({ url, glossId, word }) => window.extractTemplate(url, glossId, word),
-      { url: `/@fs${videoFile}`, glossId: entry.id, word },
-    )
-    writeFileSync(outFile, JSON.stringify(template))
-    indexById.set(entry.id, {
-      glossId: entry.id,
-      word,
-      words: entry.words,
-      durationSec: template.durationSec,
-      twoHanded: template.leftShare > 0.35 && template.rightShare > 0.35,
-    })
-    done++
-    console.log(`  [${done}/${targets.length}] ${entry.id} ${word} (${template.durationSec}s)`)
-  } catch (err) {
-    failed++
-    console.error(`  BŁĄD ${entry.id} ${word}: ${err.message}`)
-  }
-  if (done % 20 === 0) {
-    writeFileSync(indexFile, JSON.stringify([...indexById.values()].sort((a, b) => a.glossId - b.glossId)))
-  }
+const failures = []
+let cursor = 0
+
+function flushIndex() {
+  writeFileSync(
+    indexFile,
+    JSON.stringify([...indexById.values()].sort((a, b) => a.glossId - b.glossId)),
+  )
 }
 
-writeFileSync(
-  indexFile,
-  JSON.stringify([...indexById.values()].sort((a, b) => a.glossId - b.glossId)),
-)
+/** Świeża karta co PAGE_RECYCLE filmów - długie sesje MediaPipe potrafią ciec. */
+const PAGE_RECYCLE = 150
+
+async function openHarness(wid) {
+  const page = await browser.newPage()
+  page.on('pageerror', (e) => console.error(`  [strona w${wid}]`, e.message))
+  await page.goto('http://localhost:5199/tools/extract.html')
+  await page.waitForFunction(() => window.harnessReady === true, undefined, { timeout: 120000 })
+  return page
+}
+
+async function worker(wid) {
+  let page = await openHarness(wid)
+  let processed = 0
+
+  while (cursor < queue.length) {
+    const entry = queue[cursor++]
+    const word = entry.words[0]
+    if (processed > 0 && processed % PAGE_RECYCLE === 0) {
+      await page.close()
+      page = await openHarness(wid)
+    }
+    try {
+      const videoFile = await downloadVideo(entry)
+      const template = await page.evaluate(
+        ({ url, glossId, word }) => window.extractTemplate(url, glossId, word),
+        { url: `/@fs${videoFile}`, glossId: entry.id, word },
+      )
+      writeFileSync(join(signsDir, `${entry.id}.json`), JSON.stringify(template))
+      indexById.set(entry.id, {
+        glossId: entry.id,
+        word,
+        words: entry.words,
+        durationSec: template.durationSec,
+        twoHanded: template.leftShare > 0.35 && template.rightShare > 0.35,
+      })
+      done++
+      console.log(`  [${done}/${targets.length}] ${entry.id} ${word} (${template.durationSec}s)`)
+      if (done % 20 === 0) flushIndex()
+    } catch (err) {
+      failed++
+      failures.push({ id: entry.id, word, error: err.message })
+      console.error(`  BŁĄD ${entry.id} ${word}: ${err.message}`)
+      // Po błędzie infrastruktury (padła karta) - odtwórz kartę.
+      if (/Target|crashed|closed/i.test(err.message)) {
+        try {
+          await page.close()
+        } catch {
+          // karta już nie żyje
+        }
+        page = await openHarness(wid)
+      }
+    }
+    processed++
+  }
+  await page.close()
+}
+
+const workers = Math.max(1, Number(getOpt('workers') ?? 3))
+await Promise.all(Array.from({ length: workers }, (_, i) => worker(i + 1)))
+
+flushIndex()
+if (failures.length > 0) {
+  writeFileSync(join(root, '.cache', 'extract-failures.json'), JSON.stringify(failures, null, 2))
+}
 console.log(`Gotowe: ${done} szablonów, ${failed} błędów. Indeks: ${indexFile}`)
 
 await browser.close()

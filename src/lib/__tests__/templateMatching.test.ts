@@ -69,11 +69,16 @@ describe('dopasowanie do prawdziwych szablonów z KSPJM', () => {
   })
 
   it('własny szablon jest bliżej niż zdecydowana większość innych znaków', () => {
+    // Próbka ~60 szablonów × ~40 konkurentów - pełny iloczyn byłby O(n²).
+    const strideT = Math.max(1, Math.floor(templates.length / 60))
+    const strideO = Math.max(1, Math.floor(templates.length / 40))
     let better = 0
     let total = 0
-    for (const t of templates) {
+    for (let i = 0; i < templates.length; i += strideT) {
+      const t = templates[i]
       const self = dtwDistance(noisy(t.frames, 0.015), t.frames)
-      for (const other of templates) {
+      for (let j = 0; j < templates.length; j += strideO) {
+        const other = templates[j]
         if (other.glossId === t.glossId) continue
         total++
         if (self < dtwDistance(noisy(t.frames, 0.015), other.frames)) better++

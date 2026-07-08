@@ -157,12 +157,14 @@ export function bestWindowDistance(
     (f) => f.left || f.right,
   )
   if (frames.length === 0) return Infinity
-  const targetLen = Math.max(6, Math.round(template.durationSec * sampleFps))
+  // Krótki znak przy wolnym próbkowaniu to zaledwie kilka klatek - okno
+  // nie może być dłuższe, bo obejmie dwa powtórzenia znaku naraz.
+  const targetLen = Math.max(3, Math.round(template.durationSec * sampleFps))
   const scales = [0.6, 0.8, 1.0, 1.25, 1.5]
   let best = Infinity
 
   for (const scale of scales) {
-    const len = Math.min(frames.length, Math.max(6, Math.round(targetLen * scale)))
+    const len = Math.min(frames.length, Math.max(3, Math.round(targetLen * scale)))
     const stride = Math.max(1, Math.round(len * 0.2))
     for (let start = 0; start + len <= frames.length; start += stride) {
       const window = frames.slice(start, start + len)
@@ -180,6 +182,7 @@ export function bestWindowDistance(
       }
     }
   }
+
 
   // Całe nagranie jako kandydat - zachowuje dotychczasowe zachowanie.
   const whole = dtwDistance(resampleFrames(frames), template.frames)
@@ -211,11 +214,11 @@ export function matchRecording(
   template: SignTemplate,
   sampleFps = 15,
 ): MatchResult {
-  // Udział dłoni liczymy po uzupełnieniu krótkich przerw w detekcji -
-  // wolny sprzęt gubi klatki w trakcie ruchu, co nie jest winą użytkownika.
+  // Próg bezwzględny, nie udziałowy: krótki znak przy wolnym próbkowaniu
+  // ma dłonie w małym odsetku klatek, a mimo to wykonanie jest poprawne.
   const densified = densifyFrames(userFrames, Math.max(2, Math.round(sampleFps * 0.4)))
   const withHands = densified.filter((f) => f.left || f.right).length
-  if (withHands < 5 || withHands / Math.max(1, densified.length) < 0.2) {
+  if (withHands < 5) {
     return {
       distance: Infinity,
       score: 0,

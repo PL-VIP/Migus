@@ -8,10 +8,10 @@ import {
   searchCatalog,
   type CatalogEntry,
 } from '../lib/catalog'
-import signIndex from '../data/generated/signIndex.json'
+import templateIds from '../data/generated/templateIds.json'
 import { PracticeView } from './PracticeView'
 
-const TEMPLATE_IDS = new Set((signIndex as Array<{ glossId: number }>).map((e) => e.glossId))
+const TEMPLATE_IDS = new Set(templateIds as number[])
 
 /** Przeszukiwarka całego katalogu KSPJM (crawl: scripts/crawl-dictionary.mjs). */
 export function DictionaryView() {
@@ -48,8 +48,7 @@ export function DictionaryView() {
       <p className="muted">
         Cały katalog Korpusowego Słownika PJM: {catalog ? catalog.length : '…'} haseł zebranych
         automatycznie. Wpisz polskie słowo, aby zobaczyć nagranie znaku. Dla {TEMPLATE_IDS.size}{' '}
-        znaków dostępne jest też ćwiczenie przed kamerą z oceną wykonania
-        (<code>npm run templates:all</code> generuje kolejne szablony).
+        znaków dostępne jest też ćwiczenie przed kamerą z oceną wykonania.
       </p>
 
       <input

@@ -548,6 +548,17 @@
   color: var(--accent);
 }
 
+.lesson.all-words .dict-search {
+  margin-top: 4px;
+  margin-bottom: 10px;
+}
+
+.show-more {
+  margin-top: 14px;
+  width: 100%;
+  border-style: dashed;
+}
+
 /* ---- ćwiczenie słowa ---- */
 
 .practice {
