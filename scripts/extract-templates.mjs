@@ -99,6 +99,22 @@ const queue = targets.filter((entry) => force || !existsSync(join(signsDir, `${e
 const skipped = targets.length - queue.length
 console.log(`Istniejące szablony: ${skipped}, do ekstrakcji: ${queue.length}`)
 
+// Uzupełnij indeks o szablony, które istnieją na dysku, ale wypadły
+// z indeksu (np. przerwana poprzednia sesja między zapisami indeksu).
+for (const entry of targets) {
+  if (indexById.has(entry.id)) continue
+  const outFile = join(signsDir, `${entry.id}.json`)
+  if (!existsSync(outFile)) continue
+  const template = JSON.parse(readFileSync(outFile, 'utf8'))
+  indexById.set(entry.id, {
+    glossId: entry.id,
+    word: entry.words[0],
+    words: entry.words,
+    durationSec: template.durationSec,
+    twoHanded: template.leftShare > 0.35 && template.rightShare > 0.35,
+  })
+}
+
 let done = skipped
 let failed = 0
 const failures = []
