@@ -21,36 +21,57 @@ function shapeDist(a: number[], b: number[]): number {
   return Math.sqrt(sum / a.length)
 }
 
-/** Kara za brak dłoni, gdy szablon jej wymaga (i odwrotnie). */
+/** Kara za brak dłoni, gdy druga sekwencja w ogóle nie widzi rąk. */
 const MISSING_HAND_COST = 1.1
+
+/**
+ * Łagodniejsza kara, gdy klatka MA wykrytą jakąś dłoń, a brakuje tylko
+ * drugiej: przy słabym sprzęcie detektor często łapie jedną z dwóch rąk
+ * i nie jest to wina użytkownika.
+ */
+const PARTIAL_MISSING_COST = 0.6
 
 /** Waga trajektorii (pozycji nadgarstka w kadrze) względem kształtu dłoni. */
 const TRAJECTORY_WEIGHT = 2.2
 
-function handDist(a: HandFrame | null, b: HandFrame | null): number {
-  if (!a && !b) return 0
-  if (!a || !b) return MISSING_HAND_COST
+function handDist(a: HandFrame, b: HandFrame): number {
   const shape = shapeDist(a.shape, b.shape)
   const traj = Math.hypot(a.wrist[0] - b.wrist[0], a.wrist[1] - b.wrist[1])
   return shape + TRAJECTORY_WEIGHT * traj
 }
 
-/**
- * Odległość między klatkami: średnia po dłoniach, które występują
- * w którejkolwiek z klatek (pary pustych dłoni nie rozmywają kosztu).
- */
-export function frameDist(a: SignFrame, b: SignFrame): number {
+function frameDistPairing(
+  aL: HandFrame | null,
+  aR: HandFrame | null,
+  bL: HandFrame | null,
+  bR: HandFrame | null,
+): number {
+  const partial = (aL || aR) && (bL || bR)
   let sum = 0
   let active = 0
-  if (a.left || b.left) {
-    sum += handDist(a.left, b.left)
+  for (const [x, y] of [
+    [aL, bL],
+    [aR, bR],
+  ] as const) {
+    if (!x && !y) continue
     active++
-  }
-  if (a.right || b.right) {
-    sum += handDist(a.right, b.right)
-    active++
+    if (!x || !y) sum += partial ? PARTIAL_MISSING_COST : MISSING_HAND_COST
+    else sum += handDist(x, y)
   }
   return active > 0 ? sum / active : 0
+}
+
+/**
+ * Odległość między klatkami: średnia po dłoniach, które występują
+ * w którejkolwiek z klatek. Sprawdzamy oba przypisania L/R i bierzemy
+ * lepsze - etykiety chiralności z MediaPipe bywają błędne przy słabym
+ * oświetleniu, a pojedynczo wykryta dłoń ma pasować do właściwej ręki
+ * lektora, nie do tej o przypadkowej etykiecie.
+ */
+export function frameDist(a: SignFrame, b: SignFrame): number {
+  const direct = frameDistPairing(a.left, a.right, b.left, b.right)
+  const swapped = frameDistPairing(a.left, a.right, b.right, b.left)
+  return Math.min(direct, swapped)
 }
 
 /**
@@ -144,49 +165,79 @@ export function mirrorFrames(frames: SignFrame[]): SignFrame[] {
  * `userFrames` to surowe klatki (po przycięciu brzegów bez dłoni),
  * `sampleFps` - tempo próbkowania nagrania.
  */
+/**
+ * Dzieli nagranie na „wyspy aktywności”: ciągłe fragmenty z dłońmi,
+ * rozdzielone dłuższymi przerwami bez detekcji (ręce opuszczone/poza
+ * kadrem). Sklejanie fragmentów po obu stronach przerwy tworzyłoby
+ * sztuczne skoki trajektorii, które DTW niesłusznie karze.
+ */
+function activityIslands(frames: SignFrame[], maxGap: number): SignFrame[][] {
+  const islands: SignFrame[][] = []
+  let current: SignFrame[] = []
+  let emptyRun = 0
+  for (const f of frames) {
+    if (f.left || f.right) {
+      current.push(f)
+      emptyRun = 0
+    } else if (current.length > 0) {
+      emptyRun++
+      if (emptyRun > maxGap) {
+        islands.push(current)
+        current = []
+        emptyRun = 0
+      }
+    }
+  }
+  if (current.length > 0) islands.push(current)
+  return islands
+}
+
 export function bestWindowDistance(
   userFrames: SignFrame[],
   template: SignTemplate,
   sampleFps = 15,
 ): number {
   if (userFrames.length === 0) return Infinity
-  // Krótkie dziury w detekcji (do ~0,4 s) uzupełniamy interpolacją,
-  // a klatki nadal puste odrzucamy: brak detekcji to brak informacji,
-  // nie dowód, że ręce zniknęły (słaby sprzęt gubi klatki przy ruchu).
-  const frames = densifyFrames(userFrames, Math.max(2, Math.round(sampleFps * 0.4))).filter(
-    (f) => f.left || f.right,
-  )
-  if (frames.length === 0) return Infinity
+  // Krótkie dziury w detekcji (do ~0,4 s) uzupełniamy interpolacją;
+  // dłuższe przerwy dzielą nagranie na niezależne wyspy aktywności.
+  const maxGap = Math.max(2, Math.round(sampleFps * 0.4))
+  const islands = activityIslands(densifyFrames(userFrames, maxGap), maxGap)
+  if (islands.length === 0) return Infinity
+
   // Krótki znak przy wolnym próbkowaniu to zaledwie kilka klatek - okno
   // nie może być dłuższe, bo obejmie dwa powtórzenia znaku naraz.
+  // Skale do 2,0: początkujący migają nawet dwukrotnie wolniej od lektora.
   const targetLen = Math.max(3, Math.round(template.durationSec * sampleFps))
-  const scales = [0.6, 0.8, 1.0, 1.25, 1.5]
+  const scales = [0.6, 0.8, 1.0, 1.25, 1.5, 2.0]
   let best = Infinity
 
-  for (const scale of scales) {
-    const len = Math.min(frames.length, Math.max(3, Math.round(targetLen * scale)))
-    const stride = Math.max(1, Math.round(len * 0.2))
-    for (let start = 0; start + len <= frames.length; start += stride) {
-      const window = frames.slice(start, start + len)
-      // Okna w większości puste (dłonie poza kadrem) nie są kandydatami.
-      if (presenceShare(window) < 0.5) continue
-      const d = dtwDistance(resampleFrames(window), template.frames)
-      if (d < best) best = d
-    }
-    // Ostatnie okno dosunięte do końca nagrania.
-    if (frames.length > len) {
-      const window = frames.slice(frames.length - len)
-      if (presenceShare(window) >= 0.5) {
+  for (const island of islands) {
+    if (island.length < 3) continue
+    for (const scale of scales) {
+      const len = Math.min(island.length, Math.max(3, Math.round(targetLen * scale)))
+      const stride = Math.max(1, Math.round(len * 0.2))
+      for (let start = 0; start + len <= island.length; start += stride) {
+        const window = island.slice(start, start + len)
+        // Okna w większości puste (dłonie poza kadrem) nie są kandydatami.
+        if (presenceShare(window) < 0.5) continue
         const d = dtwDistance(resampleFrames(window), template.frames)
         if (d < best) best = d
       }
+      // Ostatnie okno dosunięte do końca wyspy.
+      if (island.length > len) {
+        const window = island.slice(island.length - len)
+        if (presenceShare(window) >= 0.5) {
+          const d = dtwDistance(resampleFrames(window), template.frames)
+          if (d < best) best = d
+        }
+      }
     }
+    // Cała wyspa jako kandydat.
+    const whole = dtwDistance(resampleFrames(island), template.frames)
+    if (whole < best) best = whole
   }
 
-
-  // Całe nagranie jako kandydat - zachowuje dotychczasowe zachowanie.
-  const whole = dtwDistance(resampleFrames(frames), template.frames)
-  return Math.min(best, whole)
+  return best
 }
 
 function distanceToResult(distance: number): MatchResult {
@@ -228,5 +279,15 @@ export function matchRecording(
   }
   const direct = bestWindowDistance(userFrames, template, sampleFps)
   const mirrored = bestWindowDistance(mirrorFrames(userFrames), template, sampleFps)
-  return distanceToResult(Math.min(direct, mirrored))
+  const result = distanceToResult(Math.min(direct, mirrored))
+  lastMatchDebug = { direct, mirrored, sampleFps, frames: userFrames.length }
+  return result
 }
+
+/** Diagnostyka ostatniego dopasowania (testy E2E). */
+export let lastMatchDebug: {
+  direct: number
+  mirrored: number
+  sampleFps: number
+  frames: number
+} | null = null

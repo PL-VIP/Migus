@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision'
-import { matchRecording, type MatchResult } from '../lib/dtw'
+import { lastMatchDebug, matchRecording, type MatchResult } from '../lib/dtw'
 import {
   handFrameFromLandmarks,
   trimIdleFrames,
@@ -199,6 +199,8 @@ export function useSignPractice(template: SignTemplate | null) {
             elapsedMs: Math.round(elapsed),
             effFps: Number(effFps.toFixed(1)),
             distance: match.distance,
+            match: lastMatchDebug,
+            glossId: tmpl.glossId,
           }
           setPhase('result', { result: match })
         }
@@ -219,9 +221,11 @@ export function useSignPractice(template: SignTemplate | null) {
         baseOptions: { modelAssetPath: '/models/hand_landmarker.task', delegate: 'GPU' as const },
         runningMode: 'VIDEO' as const,
         numHands: 2,
-        minHandDetectionConfidence: 0.4,
-        minHandPresenceConfidence: 0.4,
-        minTrackingConfidence: 0.4,
+        // Nisko: lepiej złapać dłoń z mniejszą pewnością, niż nie widzieć
+        // jej wcale - błędne dopasowania i tak odfiltruje DTW.
+        minHandDetectionConfidence: 0.3,
+        minHandPresenceConfidence: 0.3,
+        minTrackingConfidence: 0.3,
       }
       try {
         landmarker = await HandLandmarker.createFromOptions(vision, options)
@@ -233,8 +237,42 @@ export function useSignPractice(template: SignTemplate | null) {
       }
       landmarkerRef.current = landmarker
 
+      // „GPU” bywa emulowane programowo (SwiftShader) i wtedy jest dużo
+      // wolniejsze od czystego WASM (XNNPACK). Mierzymy pierwszą inferencję
+      // i przy żółwim tempie przełączamy się na delegata CPU.
+      try {
+        const probe = document.createElement('canvas')
+        probe.width = 256
+        probe.height = 256
+        probe.getContext('2d')!.fillRect(0, 0, 256, 256)
+        landmarker.detectForVideo(probe, performance.now())
+        const t0 = performance.now()
+        landmarker.detectForVideo(probe, performance.now())
+        const gpuMs = performance.now() - t0
+        if (gpuMs > 120) {
+          const cpu = await HandLandmarker.createFromOptions(vision, {
+            ...options,
+            baseOptions: { ...options.baseOptions, delegate: 'CPU' },
+          })
+          const t1 = performance.now()
+          cpu.detectForVideo(probe, performance.now())
+          const cpuMs = performance.now() - t1
+          if (cpuMs < gpuMs) {
+            landmarker.close()
+            landmarkerRef.current = cpu
+          } else {
+            cpu.close()
+          }
+        }
+      } catch {
+        // pomiar to tylko optymalizacja - zostajemy przy bieżącym delegacie
+      }
+
+      // 640x360 zamiast HD: MediaPipe i tak wewnętrznie zmniejsza obraz,
+      // a mniejsze klatki znacząco przyspieszają detekcję na słabym sprzęcie
+      // (więcej próbek na sekundę = lepsze dopasowanie ruchu).
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+        video: { width: { ideal: 640 }, height: { ideal: 360 }, facingMode: 'user' },
         audio: false,
       })
       streamRef.current = stream

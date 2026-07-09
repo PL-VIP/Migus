@@ -1,22 +1,31 @@
 /**
  * Test E2E wykrywania w ćwiczeniu słowa: jako obraz kamery podstawiamy
  * zapętlone nagranie lektora KSPJM (plik Y4M). Sprawdzamy dwie strony:
- *  - POZYTYW: ćwiczenie tego samego słowa, które „miga” kamera → wynik OK,
- *  - NEGATYW: ćwiczenie innego słowa → wynik wyraźnie niższy, nie OK.
+ *  - POZYTYW: ćwiczenie tego samego znaku, który „miga” kamera → wynik OK,
+ *  - NEGATYW: ćwiczenie innego znaku → wynik wyraźnie niższy, nie OK.
  *
- * Użycie: node scripts/smoke-practice.mjs <plik.y4m> <słowoPozytyw> <słowoNegatyw> [urlBazowy] [katalogZrzutów]
+ * Znaki wskazujemy jako słowo:idHasła (wiele haseł ma to samo słowo,
+ * ale INNY znak - np. „szpieg” to 1210 i 3310).
+ *
+ * Użycie: node scripts/smoke-practice.mjs <plik.y4m> <słowo:id> <słowo:id> [urlBazowy] [katalogZrzutów]
  */
 import { chromium } from 'playwright'
 import { mkdirSync } from 'fs'
 import { join } from 'path'
 
-const [feed, positiveWord, negativeWord] = process.argv.slice(2)
+const [feed, positiveArg, negativeArg] = process.argv.slice(2)
 const base = process.argv[5] ?? 'http://localhost:4173'
 const outDir = process.argv[6] ?? '/tmp/smoke'
-if (!feed || !positiveWord || !negativeWord) {
-  console.error('Użycie: smoke-practice.mjs <plik.y4m> <słowoPozytyw> <słowoNegatyw>')
+if (!feed || !positiveArg || !negativeArg) {
+  console.error('Użycie: smoke-practice.mjs <plik.y4m> <słowoPozytyw:id> <słowoNegatyw:id>')
   process.exit(1)
 }
+const parseTarget = (arg) => {
+  const [word, id] = arg.split(':')
+  return { word, glossId: id ? Number(id) : null }
+}
+const positive = parseTarget(positiveArg)
+const negative = parseTarget(negativeArg)
 mkdirSync(outDir, { recursive: true })
 
 const browser = await chromium.launch({
@@ -32,12 +41,16 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
 page.on('pageerror', (err) => console.log('[pageerror]', String(err)))
 
-/** Otwiera ćwiczenie słowa ze słownika i zwraca najlepszy wynik z `attempts` prób. */
-async function practiceWord(word, attempts, shot) {
+/** Otwiera ćwiczenie znaku ze słownika i zwraca najlepszy wynik z `attempts` prób. */
+async function practiceWord(target, attempts, shot) {
+  const { word, glossId } = target
   await page.goto(base, { waitUntil: 'networkidle' })
   await page.locator('nav.tabs button', { hasText: 'Słownik' }).click()
   await page.fill('input.dict-search', word)
-  const card = page.locator('.dict-card', { has: page.locator('.word-title', { hasText: word }) }).first()
+  // Konkretny wariant znaku: karta linkująca do hasła o danym id.
+  const card = glossId
+    ? page.locator('.dict-card', { has: page.locator(`a[href$="/gloss/view/${glossId}"]`) }).first()
+    : page.locator('.dict-card', { has: page.locator('.word-title', { hasText: word }) }).first()
   await card.locator('button', { hasText: 'Ćwicz przed kamerą' }).click()
 
   // Krok 1 → 2 (przycisk aktywny po wczytaniu szablonu).
@@ -71,20 +84,20 @@ async function practiceWord(word, attempts, shot) {
   return best
 }
 
-console.log(`POZYTYW: kamera miga „${positiveWord}”, ćwiczymy „${positiveWord}”`)
-const positive = await practiceWord(positiveWord, 3, 'practice-positive.png')
-console.log(`  najlepszy wynik: ${positive}%`)
+console.log(`POZYTYW: kamera miga „${positive.word}” (${positive.glossId}), ćwiczymy ten znak`)
+const positiveScore = await practiceWord(positive, 3, 'practice-positive.png')
+console.log(`  najlepszy wynik: ${positiveScore}%`)
 
-console.log(`NEGATYW: kamera miga „${positiveWord}”, ćwiczymy „${negativeWord}”`)
-const negative = await practiceWord(negativeWord, 3, 'practice-negative.png')
-console.log(`  najlepszy wynik: ${negative}%`)
+console.log(`NEGATYW: kamera miga „${positive.word}”, ćwiczymy „${negative.word}” (${negative.glossId})`)
+const negativeScore = await practiceWord(negative, 3, 'practice-negative.png')
+console.log(`  najlepszy wynik: ${negativeScore}%`)
 
 await browser.close()
 
-if (positive < 55) {
-  throw new Error(`POZYTYW nie przeszedł: najlepszy wynik ${positive}% < 55%`)
+if (positiveScore < 55) {
+  throw new Error(`POZYTYW nie przeszedł: najlepszy wynik ${positiveScore}% < 55%`)
 }
-if (negative >= positive) {
-  throw new Error(`NEGATYW (${negative}%) nie jest niższy od POZYTYWU (${positive}%)`)
+if (negativeScore >= positiveScore) {
+  throw new Error(`NEGATYW (${negativeScore}%) nie jest niższy od POZYTYWU (${positiveScore}%)`)
 }
-console.log(`OK - właściwy znak: ${positive}%, inny znak: ${negative}%`)
+console.log(`OK - właściwy znak: ${positiveScore}%, inny znak: ${negativeScore}%`)

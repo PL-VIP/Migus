@@ -87,11 +87,6 @@ const server = await createServer({
 })
 await server.listen()
 
-const browser = await chromium.launch({
-  executablePath: process.env.CHROME_PATH ?? '/usr/local/bin/google-chrome',
-  args: ['--no-sandbox'],
-})
-
 const index = existsSync(indexFile) ? JSON.parse(readFileSync(indexFile, 'utf8')) : []
 const indexById = new Map(index.map((e) => [e.glossId, e]))
 
@@ -127,8 +122,17 @@ function flushIndex() {
   )
 }
 
-/** Świeża karta co PAGE_RECYCLE filmów - długie sesje MediaPipe potrafią ciec. */
-const PAGE_RECYCLE = 150
+/**
+ * Świeża karta co PAGE_RECYCLE filmów: długa sesja MediaPipe w jednej karcie
+ * stopniowo zwalnia (tempo spada z ~11/min do ~4/min po godzinie), a recykling
+ * karty przywraca pełne tempo.
+ */
+const PAGE_RECYCLE = 60
+
+const browser = await chromium.launch({
+  executablePath: process.env.CHROME_PATH ?? '/usr/local/bin/google-chrome',
+  args: ['--no-sandbox'],
+})
 
 async function openHarness(wid) {
   const page = await browser.newPage()

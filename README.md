@@ -4,9 +4,9 @@ Platforma do nauki PJM (polskiego języka migowego). Wszystko działa w przeglą
 
 Trzy moduły:
 
-1. **Nauka słów** (jak Duolingo): obejrzyj nagranie znaku PJM + automatyczną instrukcję → powtórz znak przed kamerą → aplikacja oceni wykonanie i przyzna XP.
+1. **Nauka słów** (jak Duolingo): obejrzyj nagranie znaku PJM + automatyczną instrukcję → powtórz znak przed kamerą → aplikacja oceni wykonanie i przyzna XP. Lekcje na start plus sekcja **„Wszystkie słowa ze słownika”** — do ćwiczenia jest **cały słownik (~2870 znaków z szablonem ruchu)**.
 2. **Alfabet palcowy**: rozpoznawanie na żywo **wszystkich 38 znaków** polskiego alfabetu palcowego — liter statycznych i ruchomych (Ą, Ę, J, Ł, SZ, CZ, RZ…).
-3. **Słownik**: przeszukiwarka całego Korpusowego Słownika PJM (~2900 haseł zebranych automatycznie) z nagraniami znaków.
+3. **Słownik**: przeszukiwarka całego Korpusowego Słownika PJM (~2900 haseł zebranych automatycznie) z nagraniami znaków i ćwiczeniem przed kamerą dla każdego znaku z szablonem.
 
 ## Zautomatyzowany słownik (cały KSPJM)
 
@@ -18,14 +18,18 @@ npm run templates       # szablony ruchu dla słów lekcji → public/signs/*.js
 npm run templates:all   # szablony dla całego katalogu (długo; pobiera wszystkie filmy)
 ```
 
+Repozytorium zawiera już **wygenerowane szablony całego katalogu** (2873 z 2876 haseł; 3 hasła mają w KSPJM uszkodzone adresy nagrań — HTTP 404). Skrypty służą do odtworzenia/aktualizacji danych.
+
 - `scripts/crawl-dictionary.mjs` przechodzi przez wszystkie hasła KSPJM (grzecznie: opóźnienia, cache w `.cache/gloss/`, wznawialny) i zapisuje katalog: polskie odpowiedniki, typy użycia, adresy nagrań.
-- `scripts/extract-templates.mjs` pobiera film znaku, uruchamia w headless Chrome harness `tools/extract.html` (Vite + Playwright), który przepuszcza klatki przez **ten sam** MediaPipe Hand Landmarker, którego aplikacja używa dla kamery użytkownika, i zapisuje **szablon ruchu**: 32 klatki × (pozycja nadgarstka + znormalizowany kształt 21 punktów dłoni × 2 ręce) + automatycznie wygenerowaną instrukcję po polsku. Dzięki wspólnemu kodowi (`src/lib/signTemplate.ts`) nagranie lektora i wykonanie użytkownika przechodzą przez identyczną ekstrakcję cech.
+- `scripts/prefetch-videos.mjs` pobiera z wyprzedzeniem wszystkie filmy do `.cache/videos/` (ekstrakcja nie czeka wtedy na sieć).
+- `scripts/extract-templates.mjs` pobiera film znaku, uruchamia w headless Chrome harness `tools/extract.html` (Vite + Playwright), który przepuszcza klatki przez **ten sam** MediaPipe Hand Landmarker, którego aplikacja używa dla kamery użytkownika, i zapisuje **szablon ruchu**: 32 klatki × (pozycja nadgarstka + znormalizowany kształt 21 punktów dłoni × 2 ręce) + automatycznie wygenerowaną instrukcję po polsku. Dzięki wspólnemu kodowi (`src/lib/signTemplate.ts`) nagranie lektora i wykonanie użytkownika przechodzą przez identyczną ekstrakcję cech. `--workers N` przetwarza kilka filmów równolegle (osobne karty), a przerwana ekstrakcja wznawia się od brakujących haseł.
 
 ## Jak działa ocena wykonania znaku (nauka słów)
 
-1. Po odliczeniu 3-2-1 aplikacja nagrywa sekwencję punktów dłoni (2 ręce, MediaPipe, 15 kl/s).
-2. Sekwencja jest przycinana, próbkowana do 32 klatek i porównywana z szablonem znaku algorytmem **DTW** (Dynamic Time Warping, pasmo Sakoe-Chiba) — odpornym na różnice tempa migania (`src/lib/dtw.ts`).
-3. Koszt dopasowania łączy kształt dłoni i trajektorię nadgarstka; brak wymaganej ręki jest karany. Wynik przeliczany jest na procenty i gwiazdki, a postęp (XP, opanowane słowa) zapisywany w localStorage (`src/lib/progress.ts`).
+1. Po odliczeniu 3-2-1 aplikacja nagrywa sekwencję punktów dłoni (2 ręce, MediaPipe, do 15 kl/s; na wolnych urządzeniach okno nagrywania samo się wydłuża, a dopasowanie używa rzeczywistego tempa próbkowania).
+2. Krótkie przerwy w detekcji są uzupełniane interpolacją, a dłuższe dzielą nagranie na „wyspy aktywności”. Wewnątrz wysp przesuwane jest okno o długości ~0,6–2× długości znaku — użytkownik nie musi trafić w moment startu ani w tempo lektora (`bestWindowDistance`).
+3. Każde okno porównywane jest z szablonem algorytmem **DTW** (Dynamic Time Warping, pasmo Sakoe-Chiba) po 32 klatkach (`src/lib/dtw.ts`). Sprawdzane jest też wykonanie lustrzane — osoby leworęczne mogą migać „w lustrze”.
+4. Koszt dopasowania łączy kształt dłoni i trajektorię nadgarstka; brak wymaganej ręki jest karany (łagodniej, gdy wykryta jest choć jedna dłoń — słaby sprzęt często gubi drugą rękę), a etykiety L/P z MediaPipe są traktowane elastycznie (liczy się lepsze z obu przypisań). Wynik przeliczany jest na procenty i gwiazdki, a postęp (XP, opanowane słowa) zapisywany w localStorage (`src/lib/progress.ts`).
 
 ## Jak działa rozpoznawanie liter
 
@@ -97,7 +101,7 @@ src/
     alphabet.ts        # rejestr 38 znaków alfabetu (typ, baza, ruch, opis)
     letterPoses.ts     # pozy dłoni układów PJM (grafiki zgodne z klasyfikatorem)
     lessons.ts         # lekcje nauki słów (odwołania do haseł KSPJM)
-    generated/         # signIndex.json - indeks wygenerowanych szablonów
+    generated/         # signIndex.json (indeks szablonów), templateIds.json (lista id do bundla)
   components/
     HandDiagram.tsx    # grafika SVG dłoni z 21 punktów
   hooks/
@@ -110,9 +114,11 @@ src/
     LettersView.tsx    # rozpoznawanie alfabetu palcowego
   App.tsx              # zakładki aplikacji
 scripts/
-  prepare-assets.mjs        # kopiowanie WASM i pobieranie modelu do public/
+  prepare-assets.mjs        # WASM + model do public/, generuje templateIds.json
   crawl-dictionary.mjs      # crawl całego KSPJM → public/data/catalog.json
-  extract-templates.mjs     # filmy → szablony ruchu (public/signs/*.json)
+  prefetch-videos.mjs       # pobiera wszystkie filmy słownika do .cache/videos/
+  extract-templates.mjs     # filmy → szablony ruchu (public/signs/*.json), --workers N
+  smoke-*.mjs               # testy dymne E2E (Playwright + sztuczna kamera Y4M)
 tools/
   extract.html, extract-main.ts  # harness ekstrakcji (Vite + Playwright)
 public/
