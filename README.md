@@ -1,5 +1,5 @@
 # Migus
-
+link: https://migus-sure.vercel.app
 Platforma do nauki PJM (polskiego języka migowego). Wszystko działa w przeglądarce — obraz z kamery nie jest nigdzie wysyłany.
 
 Trzy moduły:
